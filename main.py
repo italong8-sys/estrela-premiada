@@ -1,7 +1,8 @@
 import flet as ft
+import flet_audio as fta  # Nova biblioteca oficial para áudio móvel e web 🎛️
 import asyncio
 import os
-import requests  # Necessário para a API do Pix Real (Adicione 'requests' no seu requirements.txt)
+import requests  
 
 async def main(page: ft.Page):
     page.title = "StarRun Premium"
@@ -10,15 +11,15 @@ async def main(page: ft.Page):
     page.vertical_alignment = "center"
     
     # ==========================================
-    # SISTEMA DE ÁUDIO (SONS VIBRANTES)
+    # SISTEMA DE ÁUDIO REAL (USANDO FLET_AUDIO)
     # ==========================================
-    # URLs de áudio de alta velocidade (Substitua pelos caminhos dos seus próprios arquivos na pasta assets se desejar)
-    snd_bg = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=True, volume=0.3, looping=True)
-    snd_jump = ft.Audio(src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_up.ogg", autoplay=False, volume=0.6)
-    snd_point = ft.Audio(src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg", autoplay=False, volume=0.5)
-    snd_over = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/space_emergency.ogg", autoplay=False, volume=0.7)
+    # Inicializa os canais de áudio pela extensão dedicada
+    snd_bg = fta.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=True, volume=0.3, looping=True)
+    snd_jump = fta.Audio(src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_up.ogg", autoplay=False, volume=0.6)
+    snd_point = fta.Audio(src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg", autoplay=False, volume=0.5)
+    snd_over = fta.Audio(src="https://actions.google.com/sounds/v1/science_fiction/space_emergency.ogg", autoplay=False, volume=0.7)
     
-    # Injeta os players de áudio na página oculta do navegador
+    # Injeta os players na página
     page.overlay.extend([snd_bg, snd_jump, snd_point, snd_over])
 
     # --- CARREGAMENTO INICIAL DA SESSÃO SALVA ---
@@ -42,7 +43,6 @@ async def main(page: ft.Page):
         "score_session": 0, "fase_atual": 1
     }
 
-    # Recarrega listas de inventário salvas
     skins_salvas = page.client_storage.get("starrun_inv_skins")
     if skins_salvas: state["skins_desbloqueadas"] = skins_salvas.split(",")
     cenarios_salvos = page.client_storage.get("starrun_inv_cenarios")
@@ -51,7 +51,6 @@ async def main(page: ft.Page):
     cores_cenarios = {"Espaço Oblívio": "#111111", "Deserto Escaldante": "#3a2212", "Cyberpunk Neon": "#1a0033"}
     palco = ft.Column(alignment="center", horizontal_alignment="center")
 
-    # --- SALVAMENTO AUTOMÁTICO DE DADOS ---
     def salvar_progresso_local():
         page.client_storage.set("starrun_saldo", str(state["saldo"]))
         page.client_storage.set("starrun_pontos", str(state["pontos"]))
@@ -116,7 +115,7 @@ async def main(page: ft.Page):
             if not state["is_jumping"] and state["running"]:
                 state["is_jumping"] = True
                 state["velocity_y"] = 14.0
-                snd_jump.play() # Som de Pulo Ativado
+                snd_jump.play()  # Dispara o som de pulo em tempo real
 
         conteudo_jogo = ft.Container(
             content=game_stack, width=360, height=140,
@@ -145,8 +144,8 @@ async def main(page: ft.Page):
                 if state["obstacle_left"] < -15:
                     state["obstacle_left"] = 340
                     state["score_session"] += 10
-                    placar_pontos.value = f"Points: {state['score_session']}"
-                    snd_point.play() # Som de Ponto Conquistado
+                    placar_pontos.value = f"Pontos: {state['score_session']}"
+                    snd_point.play()  # Som de pontuação bem-sucedida
                     
                     nova_fase = (state["score_session"] // 100) + 1
                     if nova_fase != state["fase_atual"]:
@@ -169,7 +168,7 @@ async def main(page: ft.Page):
                 
                 if (25 <= state["obstacle_left"] <= 55) and state["star_bottom"] <= 20:
                     state["running"] = False
-                    snd_over.play() # som de batida fatal
+                    snd_over.play()  # Som de colisão / fim da partida
                     break
                 
                 page.update()
@@ -312,7 +311,7 @@ async def main(page: ft.Page):
         page.update()
 
     # ==========================================
-    # TELA 5: PAINEL DE CONEXÃO PIX API REAL
+    # TELA 5: PAINEL PIX REAL ONLINE
     # ==========================================
     def mostrar_tela_pix(e=None):
         palco.controls.clear()
@@ -336,27 +335,22 @@ async def main(page: ft.Page):
             elif v < 10.00:
                 page.snack_bar = ft.SnackBar(ft.Text("Saque mínimo obrigatório: R$ 10,00!"), bgcolor="amber800")
             else:
-                # --- INTEGRAÇÃO DA CHAMADA DA API PIX REAL ---
-                # Puxa o Token Secreto direto das Variáveis de Ambiente configuradas no Render
                 API_TOKEN = os.getenv("GATEWAY_PIX_TOKEN", "DESATIVADO")
                 
                 if API_TOKEN == "DESATIVADO":
-                    # Fallback preventivo caso você ainda não tenha colocado o Token no painel do Render
                     page.snack_bar = ft.SnackBar(ft.Text("Modo Sandbox: Chave válida, mas API externa pendente no Render!"), bgcolor="amber900")
                 else:
-                    # Envio HTTP real para o seu gateway financeiro cadastrado
                     payload = {"key": campo_chave.value, "type": tipo_chave.value, "amount": v}
                     headers = {"Authorization": f"Bearer {API_TOKEN}", "Content-Type": "application/json"}
                     
                     try:
-                        # Exemplo utilizando endpoint genérico estável de transferência de Gateway
                         response = requests.post("https://api.asaas.com/v3/transfers", json=payload, headers=headers, timeout=10)
                         if response.status_code in [200, 201]:
                             page.snack_bar = ft.SnackBar(ft.Text("Pix realizado com sucesso!"), bgcolor="green700")
                         else:
-                            page.snack_bar = ft.SnackBar(ft.Text("Gateway recusou o Pix. Verifique os fundos."), bgcolor="red700")
-                    except Exception as err:
-                        page.snack_bar = ft.SnackBar(ft.Text(f"Erro de conexão com o banco externo."), bgcolor="red700")
+                            page.snack_bar = ft.SnackBar(ft.Text("Gateway recusou o Pix."), bgcolor="red700")
+                    except Exception:
+                        page.snack_bar = ft.SnackBar(ft.Text("Erro de conexão com o banco externo."), bgcolor="red700")
 
                 state["saldo"] -= v
                 state["pontos"] = int(state["saldo"] / 0.001)
