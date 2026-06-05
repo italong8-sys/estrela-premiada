@@ -286,8 +286,8 @@ async def main(page: ft.Page):
 
 if __name__ == "__main__":
     import os
-    # O Render fornece a porta de rede automaticamente nesta variável de ambiente
+    # Captura a porta do servidor do Render
     porta = int(os.getenv("PORT", 8080))
     
-    # Roda o Flet como um servidor web puro na porta correta
-    ft.app(target=main, port=porta)
+    # CONFIGURAÇÃO CORRIGIDA: Adicionado o parâmetro assets_dir
+    ft.app(target=main, port=porta, assets_dir="assets")
