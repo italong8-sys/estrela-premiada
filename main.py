@@ -9,22 +9,22 @@ async def main(page: ft.Page):
     page.horizontal_alignment = "center"
     page.vertical_alignment = "center"
     
-    # 1. Inicializa a estrutura básica e força o Handshake estável com o navegador antes do storage
+    # Criamos o palco principal e adicionamos à página imediatamente
     palco = ft.Column(alignment="center", horizontal_alignment="center")
     page.controls.append(palco)
     await page.update_async() 
     
     # ==========================================
-    # SISTEMA DE ÁUDIO NATIVO E VIBRANTE
+    # SISTEMA DE ÁUDIO RECONFIGURADO (SEM AUTOPLAY BLOQUEANTE)
     # ==========================================
-    snd_bg = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=True, volume=0.3, release_mode="loop")
+    snd_bg = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=False, volume=0.3, release_mode="loop")
     snd_jump = ft.Audio(src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_up.ogg", autoplay=False, volume=0.6)
     snd_point = ft.Audio(src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg", autoplay=False, volume=0.5)
     snd_over = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/space_emergency.ogg", autoplay=False, volume=0.7)
     
     page.overlay.extend([snd_bg, snd_jump, snd_point, snd_over])
 
-    # --- INICIALIZAÇÃO DO ESTADO COM VALORES PADRÃO SEGUROS ---
+    # --- ESTADO DE SESSÃO DO JOGADOR ---
     state = {
         "saldo": 0.00,
         "pontos": 0,
@@ -41,9 +41,12 @@ async def main(page: ft.Page):
 
     cores_cenarios = {"Espaço Oblívio": "#111111", "Deserto Escaldante": "#3a2212", "Cyberpunk Neon": "#1a0033"}
 
-    # --- FUNÇÃO DE CARREGAMENTO SEGURO (CHAMADA APÓS CONEXÃO ATIVA) ---
+    # --- CARREGAMENTO SEGURO COM ATRASO DE CONEXÃO (HANDSHAKE) ---
     async def carregar_sessao_salva():
         try:
+            # Pequeno intervalo para garantir que o canal WebSocket sincronizou o localStorage
+            await asyncio.sleep(0.6)
+            
             s = page.client_storage.get("starrun_saldo")
             if s is not None: state["saldo"] = float(s)
             
@@ -65,9 +68,9 @@ async def main(page: ft.Page):
             cenarios_salvos = page.client_storage.get("starrun_inv_cenarios")
             if cenarios_salvos: state["cenarios_comprados"] = cenarios_salvos.split(",")
         except Exception as err:
-            print(f"Aviso de sincronia inicial do storage: {err}")
+            print(f"Aviso do Storage Local: {err}")
 
-    def salvar_progresso_local():
+    async def salvar_progresso_local():
         try:
             page.client_storage.set("starrun_saldo", str(state["saldo"]))
             page.client_storage.set("starrun_pontos", str(state["pontos"]))
@@ -77,21 +80,27 @@ async def main(page: ft.Page):
             page.client_storage.set("starrun_inv_skins", ",".join(state["skins_desbloqueadas"]))
             page.client_storage.set("starrun_inv_cenarios", ",".join(state["cenarios_comprados"]))
         except Exception as err:
-            print(f"Erro ao salvar storage: {err}")
+            print(f"Erro ao persistir dados: {err}")
 
-    def atualizar_financeiro(novos_pontos):
+    async def atualizar_financeiro(novos_pontos):
         state["pontos"] += novos_pontos
         state["saldo"] = state["pontos"] * 0.001
-        salvar_progresso_local()
+        await salvar_progresso_local()
 
     # ==========================================
-    # TELA 1: MENU PRINCIPAL
+    # TELA 1: MENU PRINCIPAL (ESTRUTURA ASYNC)
     # ==========================================
     async def mostrar_tela_principal(e=None):
         state["running"] = False 
         page.on_keyboard_event = None 
         palco.controls.clear() 
         
+        # Ativa a música assim que o usuário interage com o menu
+        try:
+            snd_bg.play()
+        except Exception:
+            pass
+
         palco.controls.extend([
             ft.Text("✨ StarRun Premium ✨", size=28, weight="bold", color="amber400"),
             ft.Container(height=10),
@@ -115,7 +124,7 @@ async def main(page: ft.Page):
         await page.update_async()
 
     # ==========================================
-    # TELA 2: MOTOR GRÁFICO DO JOGO
+    # TELA 2: MOTOR GRÁFICO DO JOGO (100% ASSÍNCRONO)
     # ==========================================
     async def mostrar_tela_jogo(e=None):
         palco.controls.clear()
@@ -154,7 +163,7 @@ async def main(page: ft.Page):
         placar_vidas = ft.Text(f"Vidas: {state['vidas']} ❤️", size=16, weight="bold", color="green400")
         placar_pontos = ft.Text("Pontos: 0", size=16, weight="bold")
         placar_fase = ft.Text("Fase: 1", size=16, weight="bold", color="amber400")
-        text_instrucao = ft.Text("Clique no cenário para saltar!", size=13, color="white40")
+        text_instrucao = ft.Text("Toque no quadrado acima para saltar!", size=13, color="white40")
 
         async def game_loop():
             gravity = 1.45
@@ -173,7 +182,7 @@ async def main(page: ft.Page):
                         state["obstacle_speed"] += 1.5
                         if state["fase_atual"] == 2 and "🚀" not in state["skins_desbloqueadas"]:
                             state["skins_desbloqueadas"].append("🚀")
-                            salvar_progresso_local()
+                            await salvar_progresso_local()
                 
                 if state["is_jumping"]:
                     state["star_bottom"] += state["velocity_y"]
@@ -190,12 +199,13 @@ async def main(page: ft.Page):
                     snd_over.play()  
                     break
                 
-                await page.update_async()
+                # Otimização extrema: Atualiza apenas o bloco do cenário na internet
+                await conteudo_jogo.update_async()
+                await placar_pontos.update_async()
                 await asyncio.sleep(0.04)
 
             state["vidas"] -= 1
-            addAll = state["score_session"]
-            atualizar_financeiro(addAll)
+            await atualizar_financeiro(state["score_session"])
             botao_iniciar.text = "Jogar Novamente 🔄"
             botao_iniciar.visible = True
             
@@ -211,23 +221,23 @@ async def main(page: ft.Page):
             placar_vidas.value = f"Vidas: {state['vidas']} ❤️"
             await page.update_async()
 
-        def disparar_inicio(e):
+        async def disparar_inicio(e):
             if state["vidas"] <= 0: return
             state["running"] = True
             state["obstacle_speed"] = 7.0
             botao_iniciar.visible = False
-            page.update()
+            await page.update_async()
             asyncio.create_task(game_loop())
 
-        def recarregar_vidas_anuncio(e):
+        async def recarregar_vidas_anuncio(e):
             page.launch_url("https://omg10.com/4/11105173")
             state["vidas"] = 3
             container_anuncio.visible = False
             botao_iniciar.visible = True
             placar_vidas.value = f"Vidas: {state['vidas']} ❤️"
             state["anuncios_assistidos"] += 1
-            salvar_progresso_local()
-            page.update()
+            await salvar_progresso_local()
+            await page.update_async()
 
         botao_iniciar = ft.ElevatedButton("Iniciar Corrida 🚀", bgcolor="green700", color="white", width=200, on_click=disparar_inicio)
         container_anuncio = ft.Column([
@@ -266,15 +276,15 @@ async def main(page: ft.Page):
             ativo = state["cenario_atual"] == item["nome"]
             
             def criar_evento_compra(nome=item["nome"], preco=item["preco"]):
-                def processar(e):
+                async def processar(e):
                     if nome in state["cenarios_comprados"]:
                         state["cenario_atual"] = nome
                     elif state["pontos"] >= preco:
                         state["pontos"] -= preco
                         state["cenarios_comprados"].append(nome)
                         state["cenario_atual"] = nome
-                        salvar_progresso_local()
-                    asyncio.create_task(mostrar_loja_cenarios())
+                        await salvar_progresso_local()
+                    await mostrar_loja_cenarios()
                 return processar
 
             if ativo: btn = ft.ElevatedButton("Equipado ✅", disabled=True, width=120)
@@ -305,20 +315,20 @@ async def main(page: ft.Page):
             if not comprado and item["tipo"] == "Anúncios" and state["anuncios_assistidos"] >= item["req"]:
                 state["skins_desbloqueadas"].append(item["skin"])
                 comprado = True
-                salvar_progresso_local()
+                await salvar_progresso_local()
 
             def criar_evento_skin(skin=item["skin"]):
-                def processar(e):
+                async def processar(e):
                     state["skin_atual"] = skin
-                    salvar_progresso_local()
-                    asyncio.create_task(mostrar_loja_skins())
+                    await salvar_progresso_local()
+                    await mostrar_loja_skins()
                 return processar
 
-            def assistir_ad_skin(e):
+            async def assistir_ad_skin(e):
                 page.launch_url("https://omg10.com/4/11105173")
                 state["anuncios_assistidos"] += 1
-                salvar_progresso_local()
-                asyncio.create_task(mostrar_loja_skins())
+                await salvar_progresso_local()
+                await mostrar_loja_skins()
 
             if ativo: btn = ft.ElevatedButton("Em uso ✨", disabled=True, width=130)
             elif comprado: btn = ft.ElevatedButton("Selecionar", bgcolor="blue700", color="white", width=130, on_click=criar_evento_skin(item["skin"]))
@@ -339,13 +349,13 @@ async def main(page: ft.Page):
         campo_chave = ft.TextField(label="Insira sua Chave Pix", width=320)
         campo_valor = ft.TextField(label="Valor do Resgate (R$)", width=320, value=f"{state['saldo']:.2f}")
 
-        def ejecutar_saque_real(e):
+        async def ejecutar_saque_real(e):
             try:
                 v = float(campo_valor.value.replace(",", "."))
             except:
                 page.snack_bar = ft.SnackBar(ft.Text("Valor inválido!"), bgcolor="red700")
                 page.snack_bar.open = True
-                page.update()
+                await page.update_async()
                 return
 
             if not tipo_chave.value or not campo_chave.value:
@@ -374,11 +384,11 @@ async def main(page: ft.Page):
 
                 state["saldo"] -= v
                 state["pontos"] = int(state["saldo"] / 0.001)
-                salvar_progresso_local()
-                asyncio.create_task(mostrar_tela_principal())
+                await salvar_progresso_local()
+                await mostrar_tela_principal()
                 
             page.snack_bar.open = True
-            page.update()
+            await page.update_async()
 
         palco.controls.extend([
             ft.Text("Solicitar Resgate Pix 💰", size=24, weight="bold"),
@@ -395,7 +405,7 @@ async def main(page: ft.Page):
         ])
         await page.update_async()
 
-    # Executa a carga segura dos dados salvos após Handshake estável e inicializa o menu principal
+    # Fluxo sequencial assíncrono seguro
     await carregar_sessao_salva()
     await mostrar_tela_principal()
 
