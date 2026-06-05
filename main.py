@@ -1,8 +1,9 @@
 import flet as ft
 import random
 import asyncio
+import os
 
-# Motor principal assíncrono para compatibilidade total com WebAssembly/Navegadores
+# Motor principal assíncrono para compatibilidade total com o Render
 async def main(page: ft.Page):
     print("\n>>> MOTOR GRÁFICO WEB INICIADO <<<")
     
@@ -17,7 +18,6 @@ async def main(page: ft.Page):
     vidas_usuario = 3  
     is_admin = False 
 
-    # Configurações do jogo adaptadas para a nuvem
     game_state = {
         "running": False,
         "is_jumping": False,
@@ -63,20 +63,18 @@ async def main(page: ft.Page):
             elementos.append(ft.ElevatedButton("Intranet / Painel", icon="admin_panel_settings", bgcolor="red900", color="white"))
             
         palco.controls.extend(elementos)
-        page.update() # Síncrono puro: Sem await para evitar erros de NoneType
+        await page.update_async()
 
     # ==========================================
-    # TELA 2: JOGO DA ESTRELA 2D (COMPATÍVEL WEB)
+    # TELA 2: JOGO DA ESTRELA 2D
     # ==========================================
     async def mostrar_tela_jogo(e=None):
         palco.controls.clear()
 
-        # Resolução responsiva adaptável ao tamanho real da janela aberta
         largura_dispositivo = page.width if page.width else 400
         game_state["arena_width"] = min(largura_dispositivo - 35, 500)
         game_state["obstacle_left"] = game_state["arena_width"] - 30
 
-        # Elementos móveis
         star = ft.Container(content=ft.Text("⭐", size=26), left=40, bottom=0)
         obstacle = ft.Container(content=ft.Text("🌵", size=26), left=game_state["obstacle_left"], bottom=0)
         chao = ft.Container(width=game_state["arena_width"], height=2, bgcolor="white54", bottom=0)
@@ -86,7 +84,6 @@ async def main(page: ft.Page):
                 game_state["is_jumping"] = True
                 game_state["velocity_y"] = 13.5 
 
-        # Camada invisível de toque/clique estendida por toda a arena
         camada_clique = ft.Container(
             bgcolor="transparent", 
             width=game_state["arena_width"], height=150, 
@@ -103,7 +100,6 @@ async def main(page: ft.Page):
             border=ft.Border.all(width=1, color="white24")
         )
 
-        # Captura comandos de teclado de computadores
         async def detectar_teclado(keyboard_event: ft.KeyboardEvent):
             if keyboard_event.key in ["Space", "Arrow Up"]:
                 await realizar_pulo()
@@ -114,13 +110,11 @@ async def main(page: ft.Page):
         placar_pontos_jogo = ft.Text("Pontos: 0", size=16, weight="bold")
         text_instrucao = ft.Text("Clique abaixo para iniciar a corrida!", size=14, color="white60")
 
-        # --- LOOP DO JOGO TOTALMENTE ASSÍNCRONO E LEVE (NÃO TRAVA O NAVEGADOR) ---
         async def game_loop():
             nonlocal vidas_usuario, pontos_usuario
             gravity = 1.2
             
             while game_state["running"]:
-                # 1. Movimentação do Cacto
                 game_state["obstacle_left"] -= game_state["obstacle_speed"]
                 if game_state["obstacle_left"] < -20:
                     game_state["obstacle_left"] = game_state["arena_width"] - 20
@@ -128,7 +122,6 @@ async def main(page: ft.Page):
                     game_state["obstacle_speed"] = min(game_state["obstacle_speed"] + 0.3, 16)
                     placar_pontos_jogo.value = f"Pontos: {game_state['score_session']}"
                 
-                # 2. Física da Estrela
                 if game_state["is_jumping"]:
                     game_state["star_bottom"] += game_state["velocity_y"]
                     game_state["velocity_y"] -= gravity
@@ -137,19 +130,16 @@ async def main(page: ft.Page):
                         game_state["is_jumping"] = False
                         game_state["velocity_y"] = 0.0
                 
-                # Sincronização de coordenadas gráficas
                 star.bottom = game_state["star_bottom"]
                 obstacle.left = game_state["obstacle_left"]
                 
-                # 3. Processamento de Colisões
                 if (game_state["obstacle_left"] >= 25 and game_state["obstacle_left"] <= 65) and game_state["star_bottom"] <= 22:
                     game_state["running"] = False
                     break
                 
-                page.update() # Atualização visual instantânea
-                await asyncio.sleep(0.03) # Pausa assíncrona inteligente: Devolve o controle para o navegador respirar
+                await page.update_async()
+                await asyncio.sleep(0.03)
 
-            # --- FLUXO GAME OVER ---
             vidas_usuario -= 1
             pontos_usuario += game_state["score_session"]
             
@@ -167,7 +157,7 @@ async def main(page: ft.Page):
             
             placar_vidas_jogo.value = f"Vidas: {vidas_usuario} ❤️"
             placar_vidas_jogo.color = "red400" if vidas_usuario == 0 else "green400"
-            page.update()
+            await page.update_async()
 
         async def disparar_inicio(e):
             game_state["running"] = True
@@ -181,29 +171,27 @@ async def main(page: ft.Page):
             text_instrucao.value = "Toque no cenário ou use ESPAÇO para Pular!"
             text_instrucao.color = "cyan200"
             placar_pontos_jogo.value = "Pontos: 0"
-            page.update()
+            await page.update_async()
             
-            # Executa o loop dentro do ecossistema assíncrono do próprio navegador
             asyncio.create_task(game_loop())
 
-   async def assistir_anuncio_premiado(e):
+        async def assistir_anuncio_premiado(e):
             nonlocal vidas_usuario
             
-            # SEU LINK REAL DA MONETAG ATUALIZADO 🚀
+            # LINK REAL ATUALIZADO E ALINHADO PERFEITAMENTE
             link_monetag = "https://omg10.com/4/11105173"
             
             page.snack_bar = ft.SnackBar(ft.Text("Abrindo anúncio... Não feche o jogo!"), bgcolor="blue700")
             page.snack_bar.open = True
-            page.update()
+            await page.update_async()
             
             page.launch_url(link_monetag)
             
             text_instrucao.value = "Aguarde 15 segundos assistindo ao anúncio..."
             text_instrucao.color = "amber400"
             container_anuncio.visible = False
-            page.update()
+            await page.update_async()
             
-            # Simulação segura da contagem de tempo web
             await asyncio.sleep(15)
             
             vidas_usuario = 3
@@ -213,7 +201,7 @@ async def main(page: ft.Page):
             text_instrucao.color = "green400"
             placar_vidas_jogo.value = f"Vidas: {vidas_usuario} ❤️"
             placar_vidas_jogo.color = "green400"
-            page.update()
+            await page.update_async()
 
         botao_iniciar = ft.ElevatedButton("Iniciar Corrida 🚀", bgcolor="green700", color="white", width=200, on_click=disparar_inicio)
         
@@ -243,7 +231,7 @@ async def main(page: ft.Page):
             ft.Container(height=20),
             ft.TextButton("Voltar ao Menu Principal", on_click=mostrar_tela_principal)
         ])
-        page.update()
+        await page.update_async()
 
     # ==========================================
     # TELA 3: CADASTRO PIX
@@ -267,7 +255,7 @@ async def main(page: ft.Page):
                 await mostrar_tela_principal()
             
             page.snack_bar.open = True
-            page.update()
+            await page.update_async()
 
         palco.controls.extend([
             ft.Text("Configure seus dados de recebimento", size=18, weight="bold"),
@@ -278,16 +266,12 @@ async def main(page: ft.Page):
             ft.Container(height=10),
             ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)
         ])
-        page.update()
+        await page.update_async()
 
     page.controls.append(palco)
-    page.update()
+    await page.update_async()
     await mostrar_tela_principal()
 
 if __name__ == "__main__":
-    import os
-    # Captura a porta do servidor do Render
     porta = int(os.getenv("PORT", 8080))
-    
-    # CONFIGURAÇÃO CORRIGIDA: Adicionado o parâmetro assets_dir
     ft.app(target=main, port=porta, assets_dir="assets")
