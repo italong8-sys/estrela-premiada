@@ -10,9 +10,10 @@ async def main(page: ft.Page):
     page.vertical_alignment = "center"
     
     # ==========================================
-    # SISTEMA DE ÁUDIO NATIVO E VIBRANTE
+    # SISTEMA DE ÁUDIO NATIVO CORRIGIDO 🎛️
     # ==========================================
-    snd_bg = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=True, volume=0.3, looping=True)
+    # Mudado de looping=True para release_mode="loop" para alinhar com a sintaxe do Flet
+    snd_bg = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=True, volume=0.3, release_mode="loop")
     snd_jump = ft.Audio(src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_up.ogg", autoplay=False, volume=0.6)
     snd_point = ft.Audio(src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg", autoplay=False, volume=0.5)
     snd_over = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/space_emergency.ogg", autoplay=False, volume=0.7)
@@ -55,7 +56,7 @@ async def main(page: ft.Page):
         page.client_storage.set("starrun_skin", state["skin_atual"])
         page.client_storage.set("starrun_cenario", state["cenario_atual"])
         page.client_storage.set("starrun_inv_skins", ",".join(state["skins_desbloqueadas"]))
-        page.client_storage.set("starrun_inv_cenarios", ",".join(state["cenarios_comprados"]))
+        page.client_storage.set("starrun_inv_cenarios", ",".join(state["cenados_comprados"]))
 
     def atualizar_financeiro(novos_pontos):
         state["pontos"] += novos_pontos
