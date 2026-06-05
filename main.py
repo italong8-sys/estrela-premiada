@@ -10,13 +10,19 @@ async def main(page: ft.Page):
     page.vertical_alignment = "center"
     page.padding = 10
     
-    # Inicializa o container principal do app
+    # Palco de renderização limpo e adaptável para PC e Telemóvel
     palco = ft.Column(alignment="center", horizontal_alignment="center")
     page.controls.append(palco)
     await page.update_async() 
     
+    # Tela de carregamento temporária para esperar a sincronização estável do WebSocket
+    progresso = ft.ProgressRing()
+    texto_carga = ft.Text("Sincronizando ligação segura...", size=14, color="white60")
+    palco.controls.extend([progresso, texto_carga])
+    await page.update_async()
+
     # ==========================================
-    # SISTEMA DE ÁUDIO NATIVO E VIBRANTE
+    # SISTEMA DE ÁUDIO ASSÍNCRONO NATIVO
     # ==========================================
     snd_bg = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=False, volume=0.25, release_mode="loop")
     snd_jump = ft.Audio(src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_up.ogg", autoplay=False, volume=0.5)
@@ -25,7 +31,7 @@ async def main(page: ft.Page):
     
     page.overlay.extend([snd_bg, snd_jump, snd_point, snd_over])
 
-    # --- ESTADO DE SESSÃO DO JOGADOR (VALORES PADRÃO SEGUROS) ---
+    # --- ESTADO DE SESSÃO DO JOGADOR ---
     state = {
         "saldo": 0.00,
         "pontos": 0,
@@ -48,11 +54,10 @@ async def main(page: ft.Page):
 
     cores_cenarios = {"Espaço Oblívio": "#111111", "Deserto Escaldante": "#3a2212", "Cyberpunk Neon": "#1a0033"}
 
-    # --- CARREGAMENTO SEGURO DO STORAGE (RODA APÓS O HANDSHAKE DA REDE) ---
+    # --- CARREGAMENTO SEGURO DO STORAGE APÓS HANDSHAKE ---
     async def carregar_sessao_salva():
         try:
-            # Aguarda 1 segundo completo para a conexão com o navegador estar 100% estável
-            await asyncio.sleep(1.0) 
+            await asyncio.sleep(1.2) # Intervalo crucial para o Flet mapear o client_storage via rede
             
             s = page.client_storage.get("starrun_saldo")
             if s is not None: state["saldo"] = float(s)
@@ -74,14 +79,10 @@ async def main(page: ft.Page):
             
             cenarios_salvos = page.client_storage.get("starrun_inv_cenarios")
             if cenarios_salvos: state["cenarios_comprados"] = cenarios_salvos.split(",")
-            
-            # Atualiza a interface com os dados reais recuperados do navegador
-            await mostrar_tela_principal()
         except Exception as err:
-            print(f"Aviso de sincronia do storage local: {err}")
+            print(f"Erro ao ler histórico: {err}")
 
-    # Métodos síncronos obrigatórios para o client_storage no Flet 0.22.1
-    def salvar_progresso_local():
+    async def salvar_progresso_local():
         try:
             page.client_storage.set("starrun_saldo", str(state["saldo"]))
             page.client_storage.set("starrun_pontos", str(state["pontos"]))
@@ -91,12 +92,12 @@ async def main(page: ft.Page):
             page.client_storage.set("starrun_inv_skins", ",".join(state["skins_desbloqueadas"]))
             page.client_storage.set("starrun_inv_cenarios", ",".join(state["cenarios_comprados"]))
         except Exception as err:
-            print(f"Erro ao salvar progresso: {err}")
+            print(f"Erro ao gravar histórico: {err}")
 
-    def atualizar_financeiro(novos_pontos):
+    async def atualizar_financeiro(novos_pontos):
         state["pontos"] += novos_pontos
         state["saldo"] = state["pontos"] * 0.001
-        salvar_progresso_local()
+        await salvar_progresso_local()
 
     # ==========================================
     # TELA 1: MENU PRINCIPAL (ASSÍNCRONO)
@@ -134,7 +135,7 @@ async def main(page: ft.Page):
         await page.update_async()
 
     # ==========================================
-    # TELA 2: MOTOR GRÁFICO DO JOGO
+    # TELA 2: MOTOR GRÁFICO DO JOGO (PC & MOBILE)
     # ==========================================
     async def mostrar_tela_jogo(e=None):
         palco.controls.clear()
@@ -142,9 +143,10 @@ async def main(page: ft.Page):
         state["score_session"] = 0
         state["fase_atual"] = 1
 
-        largura_arena = min(page.width - 20, 550) if state["tela_cheia"] else 350
-        altura_arena = 200 if state["tela_cheia"] else 140
-        state["obstacle_left"] = largura_arena - 20
+        # Layout Fluído para PC e ecrãs pequenos de Smartphones
+        largura_arena = min(page.width - 25, 550) if state["tela_cheia"] else 340
+        altura_arena = 180 if state["tela_cheia"] else 140
+        state["obstacle_left"] = largura_arena - 25
 
         star = ft.Container(content=ft.Text(state["skin_atual"], size=26), left=40, bottom=0)
         obstacle = ft.Container(content=ft.Text("🌵", size=24), left=state["obstacle_left"], bottom=0)
@@ -176,16 +178,16 @@ async def main(page: ft.Page):
         placar_vidas = ft.Text(f"Vidas: {state['vidas']} ❤️", size=15, weight="bold", color="green400")
         placar_pontos = ft.Text("Pontos: 0", size=15, weight="bold")
         placar_fase = ft.Text("Fase: 1", size=15, weight="bold", color="amber400")
-        text_instrucao = ft.Text("Toque no cenário para pular!", size=13, color="white40", text_align="center")
+        text_instrucao = ft.Text("Toque na arena para saltar!", size=13, color="white40", text_align="center")
 
         async def game_loop():
             gravity = 1.50
             while state["running"]:
-                limite_arena = min(page.width - 20, 550) if state["tela_cheia"] else 350
+                limite_arena = min(page.width - 25, 550) if state["tela_cheia"] else 340
                 
                 state["obstacle_left"] -= state["obstacle_speed"]
                 if state["obstacle_left"] < -15:
-                    state["obstacle_left"] = limite_arena - 20
+                    state["obstacle_left"] = limite_arena - 25
                     state["score_session"] += 10
                     placar_pontos.value = f"Pontos: {state['score_session']}"
                     await snd_point.play_async()  
@@ -197,7 +199,7 @@ async def main(page: ft.Page):
                         state["obstacle_speed"] += 1.5
                         if state["fase_atual"] == 2 and "🚀" not in state["skins_desbloqueadas"]:
                             state["skins_desbloqueadas"].append("🚀")
-                            salvar_progresso_local()
+                            await salvar_progresso_local()
                 
                 if state["is_jumping"]:
                     state["star_bottom"] += state["velocity_y"]
@@ -219,7 +221,7 @@ async def main(page: ft.Page):
                 await asyncio.sleep(0.04)
 
             state["vidas"] -= 1
-            atualizar_financeiro(state["score_session"])
+            await atualizar_financeiro(state["score_session"])
             botao_iniciar.text = "Jogar Novamente 🔄"
             botao_iniciar.visible = True
             
@@ -250,7 +252,7 @@ async def main(page: ft.Page):
             botao_iniciar.visible = True
             placar_vidas.value = f"Vidas: {state['vidas']} ❤️"
             state["anuncios_assistidos"] += 1
-            salvar_progresso_local()
+            await salvar_progresso_local()
             await mostrar_tela_jogo()
 
         async def alternar_redimensionamento(e):
@@ -268,7 +270,7 @@ async def main(page: ft.Page):
         btn_modo_tela = ft.IconButton(
             icon=ft.icons.FULLSCREEN_EXIT if state["tela_cheia"] else ft.icons.FULLSCREEN,
             icon_color="amber400",
-            tooltip="Alternar ajuste de tela",
+            tooltip="Ajuste de Ecrã Cheio",
             on_click=alternar_redimensionamento
         )
 
@@ -308,7 +310,7 @@ async def main(page: ft.Page):
                         state["pontos"] -= preco
                         state["cenarios_comprados"].append(nome)
                         state["cenario_atual"] = nome
-                        salvar_progresso_local()
+                        await salvar_progresso_local()
                     await mostrar_loja_cenarios()
                 return processar
 
@@ -340,19 +342,19 @@ async def main(page: ft.Page):
             if not comprado and item["tipo"] == "Anúncios" and state["anuncios_assistidos"] >= item["req"]:
                 state["skins_desbloqueadas"].append(item["skin"])
                 comprado = True
-                salvar_progresso_local()
+                await salvar_progresso_local()
 
             def criar_evento_skin(skin=item["skin"]):
                 async def processar(e):
                     state["skin_atual"] = skin
-                    salvar_progresso_local()
+                    await salvar_progresso_local()
                     await mostrar_loja_skins()
                 return processar
 
             async def assistir_ad_skin(e):
                 await page.launch_url_async("https://omg10.com/4/11105173")
                 state["anuncios_assistidos"] += 1
-                salvar_progresso_local()
+                await salvar_progresso_local()
                 await mostrar_loja_skins()
 
             if ativo: btn = ft.ElevatedButton("Em uso ✨", disabled=True, width=120)
@@ -409,7 +411,7 @@ async def main(page: ft.Page):
 
                 state["saldo"] -= v
                 state["pontos"] = int(state["saldo"] / 0.001)
-                salvar_progresso_local()
+                await salvar_progresso_local()
                 await mostrar_tela_principal()
                 
             page.snack_bar.open = True
@@ -430,10 +432,10 @@ async def main(page: ft.Page):
         ])
         await page.update_async()
 
-    # Desenha o menu com valores base rápidos e dispara a sincronia do storage local em background
+    # Fluxo síncrono inicial estável: Primeiro carrega a sessão, depois abre a interface principal
+    await carregar_sessao_salva()
     await mostrar_tela_principal()
-    asyncio.create_task(carregar_sessao_salva())
 
 if __name__ == "__main__":
     porta = int(os.getenv("PORT", 8080))
-    ft.app(target=main, port=porta, assets_dir="assets")
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=porta, assets_dir="assets")
