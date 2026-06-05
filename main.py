@@ -65,7 +65,8 @@ async def main(page: ft.Page):
             elementos.append(ft.ElevatedButton("Intranet / Painel", icon="admin_panel_settings", bgcolor="red900", color="white"))
             
         palco.controls.extend(elementos)
-        await palco.update()
+        # CORREÇÃO: Usando a atualização central da página
+        await page.update()
 
     # ==========================================
     # TELA 2: JOGO DA ESTRELA 2D (OTIMIZADO WEB)
@@ -97,7 +98,6 @@ async def main(page: ft.Page):
         
         game_stack = ft.Stack([chao, star, obstacle, camada_clique], width=game_state["arena_width"], height=140)
         
-        # Agrupamos os elementos do jogo neste container para atualizar apenas ele no loop
         conteudo_jogo = ft.Container(
             content=game_stack,
             width=game_state["arena_width"], height=140,
@@ -117,7 +117,7 @@ async def main(page: ft.Page):
         placar_pontos_jogo = ft.Text("Pontos: 0", size=16, weight="bold")
         text_instrucao = ft.Text("Clique no cenário para pular!", size=14, color="white60")
 
-        # --- LOOP OTIMIZADO: ATUALIZA APENAS O CONTEÚDO LOCAL VIA INTERNET ---
+        # --- LOOP DO JOGO: SINCRO CORRIGIDO COM A PAGE ---
         async def game_loop():
             nonlocal vidas_usuario, pontos_usuario
             gravity = 1.4
@@ -149,9 +149,8 @@ async def main(page: ft.Page):
                     game_state["running"] = False
                     break
                 
-                # CORREÇÃO: Usando await nativo sem o sufixo _async
-                await conteudo_jogo.update()
-                await placar_pontos_jogo.update()
+                # CORREÇÃO COMPLETA: Usando apenas o page.update() que é awaitable de verdade
+                await page.update()
                 await asyncio.sleep(0.04)
 
             # --- FLUXO DE FIM DE JOGO (GAME OVER) ---
@@ -172,7 +171,7 @@ async def main(page: ft.Page):
             
             placar_vidas_jogo.value = f"Vidas: {vidas_usuario} ❤️"
             placar_vidas_jogo.color = "red400" if vidas_usuario == 0 else "green400"
-            await palco.update()
+            await page.update()
 
         async def disparar_inicio(e):
             game_state["running"] = True
@@ -186,7 +185,7 @@ async def main(page: ft.Page):
             text_instrucao.value = "Toque no cenário ou use ESPAÇO para Pular!"
             text_instrucao.color = "cyan200"
             placar_pontos_jogo.value = "Pontos: 0"
-            await palco.update()
+            await page.update()
             
             asyncio.create_task(game_loop())
 
@@ -199,12 +198,12 @@ async def main(page: ft.Page):
             page.snack_bar.open = True
             await page.update()
             
-            await page.launch_url(link_monetag)
+            page.launch_url(link_monetag)
             
             text_instrucao.value = "Aguarde 15 segundos assistindo ao anúncio..."
             text_instrucao.color = "amber400"
             container_anuncio.visible = False
-            await palco.update()
+            await page.update()
             
             await asyncio.sleep(15)
             
@@ -215,7 +214,7 @@ async def main(page: ft.Page):
             text_instrucao.color = "green400"
             placar_vidas_jogo.value = f"Vidas: {vidas_usuario} ❤️"
             placar_vidas_jogo.color = "green400"
-            await palco.update()
+            await page.update()
 
         botao_iniciar = ft.ElevatedButton("Iniciar Corrida 🚀", bgcolor="green700", color="white", width=200, on_click=disparar_inicio)
         
@@ -245,7 +244,7 @@ async def main(page: ft.Page):
             ft.Container(height=20),
             ft.TextButton("Voltar ao Menu Principal", on_click=mostrar_tela_principal)
         ])
-        await palco.update()
+        await page.update()
 
     # ==========================================
     # TELA 3: CADASTRO PIX
@@ -280,7 +279,7 @@ async def main(page: ft.Page):
             ft.Container(height=10),
             ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)
         ])
-        await palco.update()
+        await page.update()
 
     # Inicialização correta da árvore de elementos
     page.controls.append(palco)
