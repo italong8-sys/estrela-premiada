@@ -10,8 +10,8 @@ async def main(page: ft.Page):
     page.vertical_alignment = "center"
     page.padding = 10
     
-    # Palco central adaptável (Se adapta ao tamanho de PCs e Celulares automaticamente)
-    palco = ft.Column(alignment="center", horizontal_alignment="center", max_width=480)
+    # CORREÇÃO: Removido o max_width inválido do ft.Column 🚀
+    palco = ft.Column(alignment="center", horizontal_alignment="center")
     page.controls.append(palco)
     await page.update_async() 
     
@@ -43,7 +43,7 @@ async def main(page: ft.Page):
         "obstacle_speed": 7.0,
         "score_session": 0, 
         "fase_atual": 1,
-        "tela_cheia": False  # Controle dinâmico de redimensionamento
+        "tela_cheia": False  
     }
 
     cores_cenarios = {"Espaço Oblívio": "#111111", "Deserto Escaldante": "#3a2212", "Cyberpunk Neon": "#1a0033"}
@@ -51,7 +51,7 @@ async def main(page: ft.Page):
     # --- CARREGAMENTO DO STORAGE TOTALMENTE ASSÍNCRONO ---
     async def carregar_sessao_salva():
         try:
-            await asyncio.sleep(0.3) # Delay de segurança para estabilizar o canal WebSocket
+            await asyncio.sleep(0.3) 
             s = await page.client_storage.get_async("starrun_saldo")
             if s is not None: state["saldo"] = float(s)
             
@@ -101,7 +101,7 @@ async def main(page: ft.Page):
         palco.controls.clear() 
         
         try:
-            await snd_bg.play_async() # Inicia som ambiente com segurança assíncrona
+            await snd_bg.play_async() 
         except Exception:
             pass
 
@@ -136,7 +136,6 @@ async def main(page: ft.Page):
         state["score_session"] = 0
         state["fase_atual"] = 1
 
-        # Calcula a largura com base no ajuste de tela selecionado
         largura_arena = min(page.width - 20, 550) if state["tela_cheia"] else 350
         altura_arena = 200 if state["tela_cheia"] else 140
         state["obstacle_left"] = largura_arena - 20
@@ -176,7 +175,6 @@ async def main(page: ft.Page):
         async def game_loop():
             gravity = 1.50
             while state["running"]:
-                # Arena dinâmica lê o tamanho em tempo real para wrap-around fluído
                 limite_arena = min(page.width - 20, 550) if state["tela_cheia"] else 350
                 
                 state["obstacle_left"] -= state["obstacle_speed"]
@@ -205,7 +203,6 @@ async def main(page: ft.Page):
                 star.bottom = state["star_bottom"]
                 obstacle.left = state["obstacle_left"]
                 
-                # Colisão matemática adaptada para altura expandida
                 if (25 <= state["obstacle_left"] <= 55) and state["star_bottom"] <= 20:
                     state["running"] = False
                     await snd_over.play_async()  
@@ -383,54 +380,4 @@ async def main(page: ft.Page):
             if not tipo_chave.value or not campo_chave.value:
                 page.snack_bar = ft.SnackBar(ft.Text("Preencha todos os dados Pix!"), bgcolor="red700")
             elif v > state["saldo"]:
-                page.snack_bar = ft.SnackBar(ft.Text("Saldo insuficiente!"), bgcolor="red700")
-            elif v < 10.00:
-                page.snack_bar = ft.SnackBar(ft.Text("Saque mínimo obrigatório: R$ 10,00!"), bgcolor="amber800")
-            else:
-                API_TOKEN = os.getenv("GATEWAY_PIX_TOKEN", "DESATIVADO")
-                
-                if API_TOKEN == "DESATIVADO":
-                    page.snack_bar = ft.SnackBar(ft.Text("Modo Sandbox: Chave válida, mas API externa pendente no Render!"), bgcolor="amber900")
-                else:
-                    payload = {"key": campo_chave.value, "type": tipo_chave.value, "amount": v}
-                    headers = {"Authorization": f"Bearer {API_TOKEN}", "Content-Type": "application/json"}
-                    
-                    try:
-                        response = requests.post("https://api.asaas.com/v3/transfers", json=payload, headers=headers, timeout=10)
-                        if response.status_code in [200, 201]:
-                            page.snack_bar = ft.SnackBar(ft.Text("Pix realizado com sucesso!"), bgcolor="green700")
-                        else:
-                            page.snack_bar = ft.SnackBar(ft.Text("Gateway recusou o Pix."), bgcolor="red700")
-                    except Exception:
-                        page.snack_bar = ft.SnackBar(ft.Text("Erro de conexão com o banco externo."), bgcolor="red700")
-
-                state["saldo"] -= v
-                state["pontos"] = int(state["saldo"] / 0.001)
-                await salvar_progresso_local()
-                await mostrar_tela_principal()
-                
-            page.snack_bar.open = True
-            await page.update_async()
-
-        palco.controls.extend([
-            ft.Text("Solicitar Resgate Pix 💰", size=24, weight="bold"),
-            ft.Container(content=ft.Column([
-                ft.Text("📜 TERMOS DE RETIRADA:", weight="bold", size=13, color="amber400"),
-                ft.Text("• Saque Mínimo Obrigatório: R$ 10,00.", size=12),
-                ft.Text("• Taxa de Conveniência: R$ 0,00 (Isento).", size=12),
-                ft.Text("• Janela de Transação: Processamento instantâneo via API Gateway.", size=12),
-            ], spacing=5), padding=12, bgcolor="#1a1a1a", border_radius=8, width=340),
-            ft.Container(height=10),
-            tipo_chave, campo_chave, campo_valor,
-            ft.ElevatedButton("Confirmar Transação Pix 🚀", bgcolor="teal700", color="white", width=320, height=45, on_click=ejecutar_saque_real),
-            ft.TextButton("Voltar ao Menu Principal", on_click=mostrar_tela_principal)
-        ])
-        await page.update_async()
-
-    # Fluxo de carregamento inicial seguro
-    await carregar_sessao_salva()
-    await mostrar_tela_principal()
-
-if __name__ == "__main__":
-    porta = int(os.getenv("PORT", 8080))
-    ft.app(target=main, port=porta, assets_dir="assets")
+                page.snack_bar = ft.SnackBar(ft.Text
