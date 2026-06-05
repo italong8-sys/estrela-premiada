@@ -3,32 +3,34 @@ import random
 import asyncio
 import os
 
-# Motor principal assíncrono para compatibilidade total com o Render
+# Motor assíncrono principal configurado para Web/Nuvem
 async def main(page: ft.Page):
-    print("\n>>> MOTOR GRÁFICO WEB INICIADO <<<")
+    print("\n>>> MOTOR GRÁFICO OTIMIZADO PARA SERVIDOR INICIADO <<<")
     
     page.title = "App de Recompensas"
     page.theme_mode = "dark"
     page.horizontal_alignment = "center"
     page.vertical_alignment = "center"
     
-    # --- VARIÁVEIS DE ESTADO GLOBAL ---
+    # --- ESTADO GLOBAL DO USUÁRIO ---
     saldo_usuario = 0.00
     pontos_usuario = 0
     vidas_usuario = 3  
     is_admin = False 
 
+    # Configurações internas do loop da Estrela 2D
     game_state = {
         "running": False,
         "is_jumping": False,
         "velocity_y": 0.0,
         "star_bottom": 0.0,
-        "obstacle_left": 0.0,
-        "obstacle_speed": 8.0,
+        "obstacle_left": 360,
+        "obstacle_speed": 7.0,
         "score_session": 0,
-        "arena_width": 400
+        "arena_width": 380
     }
 
+    # Container principal que segura as telas
     palco = ft.Column(alignment="center", horizontal_alignment="center")
 
     # ==========================================
@@ -49,7 +51,7 @@ async def main(page: ft.Page):
             
             ft.ElevatedButton(
                 "Jogar Estrela 2D 🕹️", 
-                style=ft.ButtonStyle(bgcolor="green700", color="white"),
+                bgcolor="green700", color="white",
                 width=250, height=50,
                 on_click=mostrar_tela_jogo
             ),
@@ -63,43 +65,48 @@ async def main(page: ft.Page):
             elementos.append(ft.ElevatedButton("Intranet / Painel", icon="admin_panel_settings", bgcolor="red900", color="white"))
             
         palco.controls.extend(elementos)
-        await page.update_async()
+        await palco.update_async()
 
     # ==========================================
-    # TELA 2: JOGO DA ESTRELA 2D
+    # TELA 2: JOGO DA ESTRELA 2D (OTIMIZADO WEB)
     # ==========================================
     async def mostrar_tela_jogo(e=None):
         palco.controls.clear()
 
-        largura_dispositivo = page.width if page.width else 400
-        game_state["arena_width"] = min(largura_dispositivo - 35, 500)
-        game_state["obstacle_left"] = game_state["arena_width"] - 30
+        # Define largura segura para celulares e computadores
+        game_state["arena_width"] = 360
+        game_state["obstacle_left"] = 340
 
-        star = ft.Container(content=ft.Text("⭐", size=26), left=40, bottom=0)
-        obstacle = ft.Container(content=ft.Text("🌵", size=26), left=game_state["obstacle_left"], bottom=0)
+        # Elementos visuais do cenário
+        star = ft.Container(content=ft.Text("⭐", size=24), left=40, bottom=0)
+        obstacle = ft.Container(content=ft.Text("🌵", size=24), left=game_state["obstacle_left"], bottom=0)
         chao = ft.Container(width=game_state["arena_width"], height=2, bgcolor="white54", bottom=0)
         
+        # Função do Pulo da Estrela
         async def realizar_pulo(event_data=None):
             if not game_state["is_jumping"] and game_state["running"]:
                 game_state["is_jumping"] = True
-                game_state["velocity_y"] = 13.5 
+                game_state["velocity_y"] = 14.0 
 
+        # Área de clique invisível sobre todo o cenário do jogo
         camada_clique = ft.Container(
             bgcolor="transparent", 
-            width=game_state["arena_width"], height=150, 
+            width=game_state["arena_width"], height=140, 
             on_click=realizar_pulo
         )
         
-        game_stack = ft.Stack([chao, star, obstacle, camada_clique], width=game_state["arena_width"], height=150)
+        game_stack = ft.Stack([chao, star, obstacle, camada_clique], width=game_state["arena_width"], height=140)
         
-        tela_cenario = ft.Container(
+        # Agrupamos os elementos do jogo neste container para atualizar apenas ele no loop
+        conteudo_jogo = ft.Container(
             content=game_stack,
-            width=game_state["arena_width"], height=150,
+            width=game_state["arena_width"], height=140,
             bgcolor="#111111",
             border_radius=8,
             border=ft.Border.all(width=1, color="white24")
         )
 
+        # Captura de teclado para PC
         async def detectar_teclado(keyboard_event: ft.KeyboardEvent):
             if keyboard_event.key in ["Space", "Arrow Up"]:
                 await realizar_pulo()
@@ -108,20 +115,24 @@ async def main(page: ft.Page):
 
         placar_vidas_jogo = ft.Text(f"Vidas: {vidas_usuario} ❤️", size=18, weight="bold", color="green400" if vidas_usuario > 0 else "red400")
         placar_pontos_jogo = ft.Text("Pontos: 0", size=16, weight="bold")
-        text_instrucao = ft.Text("Clique abaixo para iniciar a corrida!", size=14, color="white60")
+        text_instrucao = ft.Text("Clique no cenário para pular!", size=14, color="white60")
 
+        # --- LOOP OTIMIZADO: NÃO ENVIA DADOS DA PÁGINA INTEIRA PELA INTERNET ---
         async def game_loop():
             nonlocal vidas_usuario, pontos_usuario
-            gravity = 1.2
+            gravity = 1.4
             
             while game_state["running"]:
+                # Movimentação do Cacto
                 game_state["obstacle_left"] -= game_state["obstacle_speed"]
-                if game_state["obstacle_left"] < -20:
-                    game_state["obstacle_left"] = game_state["arena_width"] - 20
+                if game_state["obstacle_left"] < -15:
+                    game_state["obstacle_left"] = 340
                     game_state["score_session"] += 10
-                    game_state["obstacle_speed"] = min(game_state["obstacle_speed"] + 0.3, 16)
+                    # Aumento gradual de velocidade controlado
+                    game_state["obstacle_speed"] = min(game_state["obstacle_speed"] + 0.4, 14)
                     placar_pontos_jogo.value = f"Pontos: {game_state['score_session']}"
                 
+                # Física do Pulo da Estrela
                 if game_state["is_jumping"]:
                     game_state["star_bottom"] += game_state["velocity_y"]
                     game_state["velocity_y"] -= gravity
@@ -130,16 +141,21 @@ async def main(page: ft.Page):
                         game_state["is_jumping"] = False
                         game_state["velocity_y"] = 0.0
                 
+                # Aplica as posições nas coordenadas locais
                 star.bottom = game_state["star_bottom"]
                 obstacle.left = game_state["obstacle_left"]
                 
-                if (game_state["obstacle_left"] >= 25 and game_state["obstacle_left"] <= 65) and game_state["star_bottom"] <= 22:
+                # Processamento preciso de colisão
+                if (25 <= game_state["obstacle_left"] <= 55) and game_state["star_bottom"] <= 20:
                     game_state["running"] = False
                     break
                 
-                await page.update_async()
-                await asyncio.sleep(0.03)
+                # ATUALIZAÇÃO ULTRA LEVE: Atualiza apenas o cenário e os textos do placar
+                await conteudo_jogo.update_async()
+                await placar_pontos_jogo.update_async()
+                await asyncio.sleep(0.04) # Ajustado para sincronismo perfeito em conexões Web
 
+            # --- FLUXO DE FIM DE JOGO (GAME OVER) ---
             vidas_usuario -= 1
             pontos_usuario += game_state["score_session"]
             
@@ -157,40 +173,39 @@ async def main(page: ft.Page):
             
             placar_vidas_jogo.value = f"Vidas: {vidas_usuario} ❤️"
             placar_vidas_jogo.color = "red400" if vidas_usuario == 0 else "green400"
-            await page.update_async()
+            await palco.update_async()
 
         async def disparar_inicio(e):
             game_state["running"] = True
             game_state["is_jumping"] = False
             game_state["star_bottom"] = 0
-            game_state["obstacle_left"] = game_state["arena_width"] - 20
-            game_state["obstacle_speed"] = 8.0
+            game_state["obstacle_left"] = 340
+            game_state["obstacle_speed"] = 7.0
             game_state["score_session"] = 0
             
             botao_iniciar.visible = False
             text_instrucao.value = "Toque no cenário ou use ESPAÇO para Pular!"
             text_instrucao.color = "cyan200"
             placar_pontos_jogo.value = "Pontos: 0"
-            await page.update_async()
+            await palco.update_async()
             
             asyncio.create_task(game_loop())
 
         async def assistir_anuncio_premiado(e):
             nonlocal vidas_usuario
             
-            # LINK REAL ATUALIZADO E ALINHADO PERFEITAMENTE
             link_monetag = "https://omg10.com/4/11105173"
             
             page.snack_bar = ft.SnackBar(ft.Text("Abrindo anúncio... Não feche o jogo!"), bgcolor="blue700")
             page.snack_bar.open = True
             await page.update_async()
             
-            page.launch_url(link_monetag)
+            await page.launch_url_async(link_monetag)
             
             text_instrucao.value = "Aguarde 15 segundos assistindo ao anúncio..."
             text_instrucao.color = "amber400"
             container_anuncio.visible = False
-            await page.update_async()
+            await palco.update_async()
             
             await asyncio.sleep(15)
             
@@ -201,7 +216,7 @@ async def main(page: ft.Page):
             text_instrucao.color = "green400"
             placar_vidas_jogo.value = f"Vidas: {vidas_usuario} ❤️"
             placar_vidas_jogo.color = "green400"
-            await page.update_async()
+            await palco.update_async()
 
         botao_iniciar = ft.ElevatedButton("Iniciar Corrida 🚀", bgcolor="green700", color="white", width=200, on_click=disparar_inicio)
         
@@ -224,14 +239,14 @@ async def main(page: ft.Page):
             ft.Container(height=5),
             ft.Row([placar_vidas_jogo, ft.Container(width=40), placar_pontos_jogo], alignment="center"),
             ft.Container(height=10),
-            tela_cenario,
+            conteudo_jogo,
             ft.Container(height=15, content=text_instrucao, alignment="center"),
             botao_iniciar,
             container_anuncio,
             ft.Container(height=20),
             ft.TextButton("Voltar ao Menu Principal", on_click=mostrar_tela_principal)
         ])
-        await page.update_async()
+        await palco.update_async()
 
     # ==========================================
     # TELA 3: CADASTRO PIX
@@ -266,8 +281,9 @@ async def main(page: ft.Page):
             ft.Container(height=10),
             ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)
         ])
-        await page.update_async()
+        await palco.update_async()
 
+    # Inicialização correta da árvore de elementos
     page.controls.append(palco)
     await page.update_async()
     await mostrar_tela_principal()
