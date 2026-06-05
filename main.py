@@ -1,5 +1,5 @@
 import flet as ft
-import flet_audio as fta  # Nova biblioteca oficial para áudio móvel e web 🎛️
+import flet_audio as fta  
 import asyncio
 import os
 import requests  
@@ -11,15 +11,13 @@ async def main(page: ft.Page):
     page.vertical_alignment = "center"
     
     # ==========================================
-    # SISTEMA DE ÁUDIO REAL (USANDO FLET_AUDIO)
+    # SISTEMA DE ÁUDIO REAL (CORRIGIDO)
     # ==========================================
-    # Inicializa os canais de áudio pela extensão dedicada
-    snd_bg = fta.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=True, volume=0.3, looping=True)
+    snd_bg = fta.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=True, volume=0.3, release_mode="loop")
     snd_jump = fta.Audio(src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_up.ogg", autoplay=False, volume=0.6)
     snd_point = fta.Audio(src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg", autoplay=False, volume=0.5)
     snd_over = fta.Audio(src="https://actions.google.com/sounds/v1/science_fiction/space_emergency.ogg", autoplay=False, volume=0.7)
     
-    # Injeta os players na página
     page.overlay.extend([snd_bg, snd_jump, snd_point, snd_over])
 
     # --- CARREGAMENTO INICIAL DA SESSÃO SALVA ---
@@ -115,7 +113,7 @@ async def main(page: ft.Page):
             if not state["is_jumping"] and state["running"]:
                 state["is_jumping"] = True
                 state["velocity_y"] = 14.0
-                snd_jump.play()  # Dispara o som de pulo em tempo real
+                snd_jump.play()  
 
         conteudo_jogo = ft.Container(
             content=game_stack, width=360, height=140,
@@ -145,7 +143,7 @@ async def main(page: ft.Page):
                     state["obstacle_left"] = 340
                     state["score_session"] += 10
                     placar_pontos.value = f"Pontos: {state['score_session']}"
-                    snd_point.play()  # Som de pontuação bem-sucedida
+                    snd_point.play()  
                     
                     nova_fase = (state["score_session"] // 100) + 1
                     if nova_fase != state["fase_atual"]:
@@ -168,7 +166,7 @@ async def main(page: ft.Page):
                 
                 if (25 <= state["obstacle_left"] <= 55) and state["star_bottom"] <= 20:
                     state["running"] = False
-                    snd_over.play()  # Som de colisão / fim da partida
+                    snd_over.play()  
                     break
                 
                 page.update()
@@ -319,7 +317,7 @@ async def main(page: ft.Page):
         campo_chave = ft.TextField(label="Insira sua Chave Pix", width=320)
         campo_valor = ft.TextField(label="Valor do Resgate (R$)", width=320, value=f"{state['saldo']:.2f}")
 
-        def executar_saque_real(e):
+        def ejecutar_saque_real(e):
             try:
                 v = float(campo_valor.value.replace(",", "."))
             except:
@@ -370,7 +368,7 @@ async def main(page: ft.Page):
             ], spacing=6), padding=15, bgcolor="#1a1a1a", border_radius=8, width=340),
             ft.Container(height=15),
             tipo_chave, campo_chave, campo_valor,
-            ft.ElevatedButton("Confirmar Transação Pix 🚀", bgcolor="teal700", color="white", width=320, height=45, on_click=executar_saque_real),
+            ft.ElevatedButton("Confirmar Transação Pix 🚀", bgcolor="teal700", color="white", width=320, height=45, on_click=ejecutar_saque_real),
             ft.TextButton("Voltar ao Menu Principal", on_click=mostrar_tela_principal)
         ])
         page.update()
