@@ -65,7 +65,7 @@ async def main(page: ft.Page):
             elementos.append(ft.ElevatedButton("Intranet / Painel", icon="admin_panel_settings", bgcolor="red900", color="white"))
             
         palco.controls.extend(elementos)
-        await palco.update_async()
+        await palco.update()
 
     # ==========================================
     # TELA 2: JOGO DA ESTRELA 2D (OTIMIZADO WEB)
@@ -117,7 +117,7 @@ async def main(page: ft.Page):
         placar_pontos_jogo = ft.Text("Pontos: 0", size=16, weight="bold")
         text_instrucao = ft.Text("Clique no cenário para pular!", size=14, color="white60")
 
-        # --- LOOP OTIMIZADO: NÃO ENVIA DADOS DA PÁGINA INTEIRA PELA INTERNET ---
+        # --- LOOP OTIMIZADO: ATUALIZA APENAS O CONTEÚDO LOCAL VIA INTERNET ---
         async def game_loop():
             nonlocal vidas_usuario, pontos_usuario
             gravity = 1.4
@@ -128,7 +128,6 @@ async def main(page: ft.Page):
                 if game_state["obstacle_left"] < -15:
                     game_state["obstacle_left"] = 340
                     game_state["score_session"] += 10
-                    # Aumento gradual de velocidade controlado
                     game_state["obstacle_speed"] = min(game_state["obstacle_speed"] + 0.4, 14)
                     placar_pontos_jogo.value = f"Pontos: {game_state['score_session']}"
                 
@@ -150,10 +149,10 @@ async def main(page: ft.Page):
                     game_state["running"] = False
                     break
                 
-                # ATUALIZAÇÃO ULTRA LEVE: Atualiza apenas o cenário e os textos do placar
-                await conteudo_jogo.update_async()
-                await placar_pontos_jogo.update_async()
-                await asyncio.sleep(0.04) # Ajustado para sincronismo perfeito em conexões Web
+                # CORREÇÃO: Usando await nativo sem o sufixo _async
+                await conteudo_jogo.update()
+                await placar_pontos_jogo.update()
+                await asyncio.sleep(0.04)
 
             # --- FLUXO DE FIM DE JOGO (GAME OVER) ---
             vidas_usuario -= 1
@@ -173,7 +172,7 @@ async def main(page: ft.Page):
             
             placar_vidas_jogo.value = f"Vidas: {vidas_usuario} ❤️"
             placar_vidas_jogo.color = "red400" if vidas_usuario == 0 else "green400"
-            await palco.update_async()
+            await palco.update()
 
         async def disparar_inicio(e):
             game_state["running"] = True
@@ -187,7 +186,7 @@ async def main(page: ft.Page):
             text_instrucao.value = "Toque no cenário ou use ESPAÇO para Pular!"
             text_instrucao.color = "cyan200"
             placar_pontos_jogo.value = "Pontos: 0"
-            await palco.update_async()
+            await palco.update()
             
             asyncio.create_task(game_loop())
 
@@ -198,14 +197,14 @@ async def main(page: ft.Page):
             
             page.snack_bar = ft.SnackBar(ft.Text("Abrindo anúncio... Não feche o jogo!"), bgcolor="blue700")
             page.snack_bar.open = True
-            await page.update_async()
+            await page.update()
             
-            await page.launch_url_async(link_monetag)
+            await page.launch_url(link_monetag)
             
             text_instrucao.value = "Aguarde 15 segundos assistindo ao anúncio..."
             text_instrucao.color = "amber400"
             container_anuncio.visible = False
-            await palco.update_async()
+            await palco.update()
             
             await asyncio.sleep(15)
             
@@ -216,7 +215,7 @@ async def main(page: ft.Page):
             text_instrucao.color = "green400"
             placar_vidas_jogo.value = f"Vidas: {vidas_usuario} ❤️"
             placar_vidas_jogo.color = "green400"
-            await palco.update_async()
+            await palco.update()
 
         botao_iniciar = ft.ElevatedButton("Iniciar Corrida 🚀", bgcolor="green700", color="white", width=200, on_click=disparar_inicio)
         
@@ -246,7 +245,7 @@ async def main(page: ft.Page):
             ft.Container(height=20),
             ft.TextButton("Voltar ao Menu Principal", on_click=mostrar_tela_principal)
         ])
-        await palco.update_async()
+        await palco.update()
 
     # ==========================================
     # TELA 3: CADASTRO PIX
@@ -270,7 +269,7 @@ async def main(page: ft.Page):
                 await mostrar_tela_principal()
             
             page.snack_bar.open = True
-            await page.update_async()
+            await page.update()
 
         palco.controls.extend([
             ft.Text("Configure seus dados de recebimento", size=18, weight="bold"),
@@ -281,11 +280,11 @@ async def main(page: ft.Page):
             ft.Container(height=10),
             ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)
         ])
-        await palco.update_async()
+        await palco.update()
 
     # Inicialização correta da árvore de elementos
     page.controls.append(palco)
-    await page.update_async()
+    await page.update()
     await mostrar_tela_principal()
 
 if __name__ == "__main__":
