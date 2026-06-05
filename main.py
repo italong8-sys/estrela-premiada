@@ -1,21 +1,22 @@
 import flet as ft
-import asyncio
+import threading
+import time
 import os
 import requests  
 
 def main(page: ft.Page):
     page.title = "StarRun Premium"
-    page.theme_mode = "dark"
-    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+    page.theme_mode = ft.ThemeMode.DARK
+    page.horizontal_alignment = ft.MainAxisAlignment.CENTER
     page.vertical_alignment = ft.MainAxisAlignment.CENTER
     page.padding = 12
     
-    # Palco centralizado e blindado contra erros de tamanho
+    # Contentor principal síncrono e ultraveloz
     palco = ft.Column(alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10)
     page.add(palco)
 
     # ==========================================
-    # SISTEMA DE ÁUDIO NATIVO DE ALTA VELOCIDADE
+    # SISTEMA DE ÁUDIO RECONFIGURADO CONTRA CRASH
     # ==========================================
     snd_bg = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=False, volume=0.2, release_mode="loop")
     snd_jump = ft.Audio(src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_up.ogg", autoplay=False, volume=0.4)
@@ -42,12 +43,24 @@ def main(page: ft.Page):
         "obstacle_speed": 12.0,
         "score_session": 0, 
         "fase_atual": 1,
-        "tela_cheia": False
+        "tela_cheia": False,
+        # Controle do Sistema de Temas Premium
+        "temas_desbloqueados": ["Padrão Cyber"],
+        "tema_custom_atual": "Padrão Cyber"
     }
 
+    # Paleta de Cores dos Cenários da Loja
     cores_cenarios = {"Espaço Oblívio": "#111111", "Deserto Escaldante": "#3a2212", "Cyberpunk Neon": "#1a0033"}
 
-    # --- CONTROLO DO ARMAZENAMENTO LOCAL SÍNCRONO ---
+    # Configuração Visual dos Temas Extras do Site
+    estilos_temas = {
+        "Padrão Cyber": {"bg": "#111111", "card": "#1e1e1e", "texto": "amber400"},
+        "Vulcão Ultravioleta": {"bg": "#230026", "card": "#3d0042", "texto": "pink300"},
+        "Oceano Profundo": {"bg": "#021124", "card": "#052247", "texto": "cyan400"},
+        "Floresta Esmeralda": {"bg": "#051c0e", "card": "#0c3b1e", "texto": "green400"}
+    }
+
+    # --- CARREGAMENTO SEGURO E PROTEGIDO CONTRA TIMEOUT ---
     def carregar_sessao_salva():
         try:
             s = page.client_storage.get("starrun_saldo")
@@ -60,6 +73,11 @@ def main(page: ft.Page):
             if sk is not None: state["skin_atual"] = sk
             ce = page.client_storage.get("starrun_cenario")
             if ce is not None: state["cenario_atual"] = ce
+            
+            t_desb = page.client_storage.get("starrun_temas_desb")
+            if t_desb: state["temas_desbloqueados"] = t_desb.split(",")
+            t_at = page.client_storage.get("starrun_tema_at")
+            if t_at: state["tema_custom_atual"] = t_at
             
             skins_salvas = page.client_storage.get("starrun_inv_skins")
             if skins_salvas: state["skins_desbloqueadas"] = skins_salvas.split(",")
@@ -75,6 +93,8 @@ def main(page: ft.Page):
             page.client_storage.set("starrun_ads", str(state["anuncios_assistidos"]))
             page.client_storage.set("starrun_skin", state["skin_atual"])
             page.client_storage.set("starrun_cenario", state["cenario_atual"])
+            page.client_storage.set("starrun_tema_at", state["tema_custom_atual"])
+            page.client_storage.set("starrun_temas_desb", ",".join(state["temas_desbloqueados"]))
             page.client_storage.set("starrun_inv_skins", ",".join(state["skins_desbloqueadas"]))
             page.client_storage.set("starrun_inv_cenarios", ",".join(state["cenarios_comprados"]))
         except Exception:
@@ -84,6 +104,76 @@ def main(page: ft.Page):
         state["pontos"] += novos_pontos
         state["saldo"] = state["pontos"] * 0.001
         salvar_progresso_local()
+
+    # ==========================================
+    # CABEÇALHO PERSISTENTE COM BOTÃO DE CONFIGURAÇÕES
+    # ==========================================
+    def obter_cabecalho():
+        tema_at = estilos_temas.get(state["tema_custom_atual"], estilos_temas["Padrão Cyber"])
+        
+        def abrir_configuracoes(e):
+            def alterar_modo_claro_escuro(e):
+                page.theme_mode = ft.ThemeMode.LIGHT if page.theme_mode == ft.ThemeMode.DARK else ft.ThemeMode.DARK
+                page.update()
+
+            def processar_desbloqueio_tema(nome_tema):
+                def acao(e):
+                    if nome_tema in state["temas_desbloqueados"]:
+                        state["tema_custom_atual"] = nome_tema
+                        salvar_progresso_local()
+                        dialogo_config.open = False
+                        mostrar_tela_principal()
+                    else:
+                        # Assiste anúncio para desbloquear o tema selecionado
+                        page.launch_url("https://omg10.com/4/11105173")
+                        state["anuncios_assistidos"] += 1
+                        state["temas_desbloqueados"].append(nome_tema)
+                        state["tema_custom_atual"] = nome_tema
+                        salvar_progresso_local()
+                        dialogo_config.open = False
+                        mostrar_tela_principal()
+                return acao
+
+            opcoes_temas = ft.Column(spacing=8)
+            for t_nome in estilos_temas.keys():
+                liberado = t_nome in state["temas_desbloqueados"]
+                txt_btn = f"Equipar {t_nome}" if liberado else f"🔓 Desbloquear {t_nome} (1 Ad)"
+                cor_btn = "blue700" if liberado else "purple700"
+                opcoes_temas.controls.append(
+                    ft.ElevatedButton(txt_btn, bgcolor=cor_btn, color="white", width=280, on_click=processar_desbloqueio_tema(t_nome))
+                )
+
+            dialogo_config.content = ft.Container(
+                content=ft.Column([
+                    ft.Text("Ajustes Visuais do App", weight="bold", size=16),
+                    ft.Divider(),
+                    ft.ElevatedButton("Alternar Modo Claro/Escuro ☀️🌙", bgcolor="grey800", color="white", width=280, on_click=alterar_mode_claro_escuro),
+                    ft.Container(height=10),
+                    ft.Text("Temas Premium Disponíveis:", size=13, color="white60"),
+                    opcoes_temas
+                ], main_axis_size=ft.MainAxisSize.MIN, horizontal_alignment="center"),
+                width=300, padding=5
+            )
+            dialogo_config.open = True
+            page.update()
+
+        def fechar_dialogo(e):
+            dialogo_config.open = False
+            page.update()
+
+        dialogo_config = ft.AlertDialog(
+            actions=[ft.TextButton("Fechar", on_click=fechar_dialogo)],
+            actions_alignment="end"
+        )
+        page.overlay.append(dialogo_config)
+
+        return ft.Container(
+            content=ft.Row([
+                ft.Text("StarRun Premium", size=22, weight="bold", color=tema_at["texto"]),
+                ft.IconButton(ft.icons.SETTINGS, icon_color=tema_at["texto"], tooltip="Configurações", on_click=abrir_configuracoes)
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            width=340, padding=ft.padding.only(bottom=10)
+        )
 
     # ==========================================
     # TELA 1: MENU PRINCIPAL
@@ -96,10 +186,13 @@ def main(page: ft.Page):
         try: snd_bg.play()
         except Exception: pass
 
+        tema_at = estilos_temas.get(state["tema_custom_atual"], estilos_temas["Padrão Cyber"])
+        page.bgcolor = tema_at["bg"]
+
         palco.controls.extend([
-            ft.Text("✨ StarRun Premium ✨", size=28, weight="bold", color="amber400", text_align="center"),
-            ft.Container(height=5),
+            obter_cabecalho(),
             ft.Card(
+                color=tema_at["card"],
                 content=ft.Container(
                     content=ft.Column([
                         ft.Text("Seu Saldo Disponível", size=13, color="white60"),
@@ -111,15 +204,15 @@ def main(page: ft.Page):
             ),
             ft.Text(f"Vidas: {state['vidas']} ❤️ | Skin: {state['skin_atual']} | Mapa: {state['cenario_atual']}", size=12, color="white54", text_align="center"),
             ft.Container(height=10),
-            ft.ElevatedButton("Jogar Corrida Estelar 🕹️", bgcolor="green700", color="white", width=260, height=45, on_click=mostrar_tela_jogo),
-            ft.ElevatedButton("Loja de Cenários 🛒", bgcolor="blue700", color="white", width=260, height=45, on_click=mostrar_loja_cenarios),
-            ft.ElevatedButton("Desbloquear Skins 📺", bgcolor="purple700", color="white", width=260, height=45, on_click=mostrar_loja_skins),
-            ft.ElevatedButton("Sacar via Pix 💰", bgcolor="teal700", color="white", width=260, height=45, on_click=mostrar_tela_pix),
+            ft.ElevatedButton("Jogar Corrida Estelar 🕹️", bgcolor="green700", color="white", width=280, height=45, on_click=mostrar_tela_jogo),
+            ft.ElevatedButton("Loja de Cenários 🛒", bgcolor="blue700", color="white", width=280, height=45, on_click=mostrar_loja_cenarios),
+            ft.ElevatedButton("Desbloquear Skins 📺", bgcolor="purple700", color="white", width=280, height=45, on_click=mostrar_loja_skins),
+            ft.ElevatedButton("Sacar via Pix 💰", bgcolor="teal700", color="white", width=280, height=45, on_click=mostrar_tela_pix),
         ])
         page.update()
 
     # ==========================================
-    # TELA 2: MOTOR GRÁFICO DO JOGO (FIXO & RESPONSIVO)
+    # TELA 2: MOTOR GRÁFICO DO JOGO (THREAD ISOLADA)
     # ==========================================
     def mostrar_tela_jogo(e=None):
         palco.controls.clear()
@@ -127,12 +220,10 @@ def main(page: ft.Page):
         state["score_session"] = 0
         state["fase_atual"] = 1
 
-        # Resolução fixa adaptável que elimina dependência de page.width
         largura_arena = 440 if state["tela_cheia"] else 340
         altura_arena = 180 if state["tela_cheia"] else 130
         state["obstacle_left"] = largura_arena - 30
 
-        # Movimentação interpolada nativa (Evita lag de WebSocket)
         star = ft.Container(content=ft.Text(state["skin_atual"], size=26), left=40, bottom=0, animate=ft.animation.Animation(80, "linear"))
         obstacle = ft.Container(content=ft.Text("🌵", size=24), left=state["obstacle_left"], bottom=0, animate=ft.animation.Animation(80, "linear"))
         chao = ft.Container(width=largura_arena, height=2, bgcolor="white54", bottom=0)
@@ -167,8 +258,8 @@ def main(page: ft.Page):
         placar_fase = ft.Text("Fase: 1", size=14, weight="bold", color="amber400")
         text_instrucao = ft.Text("Toque na arena para pular!", size=13, color="white40")
 
-        # ENGINE ASSÍNCRONA DE FÍSICA INDEPENDENTE
-        async def game_loop():
+        # CÁLCULO DE FÍSICA E COLISÃO ISOLADO NUMA THREAD BANCADA PELO SISTEMA
+        def game_loop():
             gravity = 1.8
             while state["running"]:
                 limite_arena = 440 if state["tela_cheia"] else 340
@@ -208,7 +299,7 @@ def main(page: ft.Page):
                 
                 conteudo_jogo.update()
                 placar_pontos.update()
-                await asyncio.sleep(0.08) 
+                time.sleep(0.08)
 
             state["vidas"] -= 1
             atualizar_financeiro(state["score_session"])
@@ -233,7 +324,8 @@ def main(page: ft.Page):
             state["obstacle_speed"] = 12.0
             botao_iniciar.visible = False
             page.update()
-            page.run_task(game_loop)
+            # Dispara a Thread nativa do sistema operacional (Não trava o site)
+            threading.Thread(target=game_loop, daemon=True).start()
 
         def recarregar_vidas_anuncio(e):
             page.launch_url("https://omg10.com/4/11105173")
@@ -264,6 +356,7 @@ def main(page: ft.Page):
         )
 
         palco.controls.extend([
+            obter_cabecalho(),
             ft.Row([ft.Text("🕹️ Arena StarRun", size=16, weight="bold"), btn_modo_tela], alignment="space_between", width=largura_arena),
             ft.Row([placar_vidas, placar_fase, placar_pontos], alignment="space_around", width=largura_arena),
             ft.Container(height=5),
@@ -308,7 +401,7 @@ def main(page: ft.Page):
 
             lista_loja.controls.append(ft.Container(content=ft.Row([ft.Column([ft.Text(item["nome"], weight="bold", size=14), ft.Text(item["desc"], size=11, color="white54")], expand=True), btn]), padding=8, border=ft.Border.all(1, "white24"), border_radius=8, width=340))
 
-        palco.controls.extend([ft.Text("Loja de Cenários 🛒", size=24, weight="bold"), ft.Text(f"Seu Saldo: {state['pontos']} Pontos", color="amber400"), ft.Container(height=5), lista_loja, ft.Container(height=10), ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)])
+        palco.controls.extend([obter_cabecalho(), ft.Text("Loja de Cenários 🛒", size=24, weight="bold"), ft.Text(f"Seu Saldo: {state['pontos']} Pontos", color="amber400"), ft.Container(height=5), lista_loja, ft.Container(height=10), ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)])
         page.update()
 
     # ==========================================
@@ -352,7 +445,7 @@ def main(page: ft.Page):
 
             lista_skins.controls.append(ft.Container(content=ft.Row([ft.Text(item["skin"], size=26), ft.Column([ft.Text(item["info"], size=11, color="white70")], expand=True), btn]), padding=8, border=ft.Border.all(1, "white12"), border_radius=8, width=340))
 
-        palco.controls.extend([ft.Text("Skins Premiadas 📺", size=24, weight="bold"), ft.Text(f"Histórico: {state['anuncios_assistidos']} anúncios assistidos", color="purple300"), ft.Container(height=5), lista_skins, ft.Container(height=10), ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)])
+        palco.controls.extend([obter_cabecalho(), ft.Text("Skins Premiadas 📺", size=24, weight="bold"), ft.Text(f"Histórico: {state['anuncios_assistidos']} anúncios assistidos", color="purple300"), ft.Container(height=5), lista_skins, ft.Container(height=10), ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)])
         page.update()
 
     # ==========================================
@@ -406,6 +499,7 @@ def main(page: ft.Page):
             page.update()
 
         palco.controls.extend([
+            obter_cabecalho(),
             ft.Text("Solicitar Resgate Pix 💰", size=24, weight="bold"),
             ft.Container(content=ft.Column([
                 ft.Text("📜 REGULAMENTO DE RETIRADA:", weight="bold", size=13, color="amber400"),
@@ -420,7 +514,7 @@ def main(page: ft.Page):
         ])
         page.update()
 
-    # Inicialização segura: Primeiro carrega a sessão local, depois monta o menu principal
+    # Inicialização segura do ecossistema síncrono
     carregar_sessao_salva()
     mostrar_tela_principal()
 
