@@ -186,11 +186,11 @@ async def main(page: ft.Page):
             # Executa o loop dentro do ecossistema assíncrono do próprio navegador
             asyncio.create_task(game_loop())
 
-        async def assistir_anuncio_premiado(e):
+   async def assistir_anuncio_premiado(e):
             nonlocal vidas_usuario
             
-            # LINK DO SMARTLINK DA SUA MONETAG (Substitua por um link real do seu painel)
-            link_monetag = "https://SEU_SMARTLINK_AQUI.com/xxxxxx"
+            # SEU LINK REAL DA MONETAG ATUALIZADO 🚀
+            link_monetag = "https://omg10.com/4/11105173"
             
             page.snack_bar = ft.SnackBar(ft.Text("Abrindo anúncio... Não feche o jogo!"), bgcolor="blue700")
             page.snack_bar.open = True
