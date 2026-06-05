@@ -1,289 +1,422 @@
 import flet as ft
-import random
 import asyncio
 import os
 
-# Motor assíncrono principal configurado para Web/Nuvem
 async def main(page: ft.Page):
-    print("\n>>> MOTOR GRÁFICO OTIMIZADO PARA SERVIDOR INICIADO <<<")
-    
-    page.title = "App de Recompensas"
+    page.title = "StarRun - Jogo de Recompensas"
     page.theme_mode = "dark"
     page.horizontal_alignment = "center"
     page.vertical_alignment = "center"
     
-    # --- ESTADO GLOBAL DO USUÁRIO ---
-    saldo_usuario = 0.00
-    pontos_usuario = 0
-    vidas_usuario = 3  
-    is_admin = False 
-
-    # Configurações internas do loop da Estrela 2D
-    game_state = {
+    # --- SISTEMA DE VARIÁVEIS DE ESTADO (PERSISTENTE NA SESSÃO) ---
+    state = {
+        "saldo": 0.00,
+        "pontos": 0,
+        "vidas": 3,
+        "anuncios_assistidos": 0,
+        # Skins do Jogador
+        "skin_atual": "⭐",
+        "skins_desbloqueadas": ["⭐"], 
+        # Cenários do Jogo
+        "cenario_atual": "Espaço Oblívio",
+        "cenarios_comprados": ["Espaço Oblívio"],
+        # Configurações do Loop do Jogo
         "running": False,
         "is_jumping": False,
         "velocity_y": 0.0,
         "star_bottom": 0.0,
-        "obstacle_left": 360,
+        "obstacle_left": 340,
         "obstacle_speed": 7.0,
         "score_session": 0,
-        "arena_width": 380
+        "fase_atual": 1
     }
 
-    # Container principal que segura as telas
+    # Definição de Cores dos Cenários da Loja
+    cores_cenarios = {
+        "Espaço Oblívio": "#111111",
+        "Deserto Escaldante": "#3a2212",
+        "Cyberpunk Neon": "#1a0033"
+    }
+
     palco = ft.Column(alignment="center", horizontal_alignment="center")
+
+    # ==========================================
+    # CORREÇÃO DA PONTE DE CONVERSÃO DE PONTOS
+    # ==========================================
+    def atualizar_financeiro(novos_pontos):
+        state["pontos"] += novos_pontos
+        # Taxa de conversão: Cada 100 pontos geram R$ 0,10 (1000 pontos = R$ 1,00)
+        state["saldo"] = state["pontos"] * 0.001
 
     # ==========================================
     # TELA 1: MENU PRINCIPAL
     # ==========================================
-    async def mostrar_tela_principal(e=None):
-        game_state["running"] = False 
+    def mostrar_tela_principal(e=None):
+        state["running"] = False 
         page.on_keyboard_event = None 
         palco.controls.clear() 
         
-        elementos = [
-            ft.Text("Menu Principal", size=28, weight="bold"),
+        palco.controls.extend([
+            ft.Text("✨ StarRun Premium ✨", size=28, weight="bold", color="amber400"),
             ft.Container(height=10),
-            ft.Text(f"Saldo: R$ {saldo_usuario:.2f}", size=32, weight="bold", color="green400"),
-            ft.Text(f"Pontos acumulados: {pontos_usuario}", size=18, color="white60"),
-            ft.Text(f"Vidas restantes: {vidas_usuario} ❤️", size=18, color="red400" if vidas_usuario == 0 else "blue400"),
-            ft.Container(height=30),
-            
-            ft.ElevatedButton(
-                "Jogar Estrela 2D 🕹️", 
-                bgcolor="green700", color="white",
-                width=250, height=50,
-                on_click=mostrar_tela_jogo
+            ft.Card(
+                content=ft.Container(
+                    content=ft.Column([
+                        ft.Text("Seu Saldo Disponível", size=14, color="white60"),
+                        ft.Text(f"R$ {state['saldo']:.2f}", size=36, weight="bold", color="green400"),
+                        ft.Text(f"Pontos Totais: {state['pontos']} pts", size=14, color="white40"),
+                    ], horizontal_alignment="center"),
+                    padding=20, width=320
+                )
             ),
-            ft.Container(height=10),
-            ft.OutlinedButton("Cadastrar / Sacar via Pix", icon="account_balance_wallet", width=250, on_click=mostrar_tela_pix)
-        ]
-        
-        if is_admin:
-            elementos.append(ft.Container(height=40))
-            elementos.append(ft.Divider(color="white24"))
-            elementos.append(ft.ElevatedButton("Intranet / Painel", icon="admin_panel_settings", bgcolor="red900", color="white"))
+            ft.Text(f"Vidas: {state['vidas']} ❤️ | Skin: {state['skin_atual']} | Cenário: {state['cenario_atual']}", size=13, color="white60"),
+            ft.Container(height=20),
             
-        palco.controls.extend(elementos)
-        # CORREÇÃO: Sem await aqui, pois page.update() é síncrona nesta versão
+            ft.ElevatedButton("Jogar Corrida Estelar 🕹️", bgcolor="green700", color="white", width=260, height=45, on_click=mostrar_tela_jogo),
+            ft.ElevatedButton("Loja de Cenários 🛒", bgcolor="blue700", color="white", width=260, height=45, on_click=mostrar_loja_cenarios),
+            ft.ElevatedButton("Desbloquear Skins 📺", bgcolor="purple700", color="white", width=260, height=45, on_click=mostrar_loja_skins),
+            ft.ElevatedButton("Sacar via Pix 💰", bgcolor="teal=700", color="white", width=260, height=45, on_click=mostrar_tela_pix),
+        ])
         page.update()
 
     # ==========================================
-    # TELA 2: JOGO DA ESTRELA 2D (OTIMIZADO WEB)
+    # TELA 2: MOTOR GRÁFICO DO JOGO (100% FIX)
     # ==========================================
-    async def mostrar_tela_jogo(e=None):
+    def mostrar_tela_jogo(e=None):
         palco.controls.clear()
-
-        game_state["arena_width"] = 360
-        game_state["obstacle_left"] = 340
-
-        # Elementos visuais do cenário
-        star = ft.Container(content=ft.Text("⭐", size=24), left=40, bottom=0)
-        obstacle = ft.Container(content=ft.Text("🌵", size=24), left=game_state["obstacle_left"], bottom=0)
-        chao = ft.Container(width=game_state["arena_width"], height=2, bgcolor="white54", bottom=0)
         
-        # Função do Pulo da Estrela
-        async def realizar_pulo(event_data=None):
-            if not game_state["is_jumping"] and game_state["running"]:
-                game_state["is_jumping"] = True
-                game_state["velocity_y"] = 14.0 
+        state["obstacle_left"] = 340
+        state["star_bottom"] = 0
+        state["score_session"] = 0
+        state["fase_atual"] = 1
 
-        # Área de clique invisível sobre todo o cenário do jogo
-        camada_clique = ft.Container(
-            bgcolor="transparent", 
-            width=game_state["arena_width"], height=140, 
-            on_click=realizar_pulo
-        )
+        # Elementos dinâmicos baseados no inventário do usuário
+        star = ft.Container(content=ft.Text(state["skin_atual"], size=26), left=40, bottom=0)
+        obstacle = ft.Container(content=ft.Text("🌵", size=24), left=state["obstacle_left"], bottom=0)
+        chao = ft.Container(width=360, height=2, bgcolor="white54", bottom=0)
         
-        game_stack = ft.Stack([chao, star, obstacle, camada_clique], width=game_state["arena_width"], height=140)
+        game_stack = ft.Stack([chao, star, obstacle], width=360, height=140)
         
+        # FIX DEFINITIVO DE CLIQUE: O cenário inteiro agora captura o toque do jogador
+        async def realizar_pulo(event_data):
+            if not state["is_jumping"] and state["running"]:
+                state["is_jumping"] = True
+                state["velocity_y"] = 14.5
+
         conteudo_jogo = ft.Container(
             content=game_stack,
-            width=game_state["arena_width"], height=140,
-            bgcolor="#111111",
-            border_radius=8,
-            border=ft.Border.all(width=1, color="white24")
+            width=360, height=140,
+            bgcolor=cores_cenarios.get(state["cenario_atual"], "#111111"),
+            border_radius=10,
+            border=ft.Border.all(width=1, color="white24"),
+            on_click=realizar_pulo
         )
 
-        # Captura de teclado para PC
-        async def detectar_teclado(keyboard_event: ft.KeyboardEvent):
-            if keyboard_event.key in ["Space", "Arrow Up"]:
-                await realizar_pulo()
+        # Captura de Teclado para PC
+        async def d_teclado(k: ft.KeyboardEvent):
+            if k.key in ["Space", "Arrow Up"]:
+                if not state["is_jumping"] and state["running"]:
+                    state["is_jumping"] = True
+                    state["velocity_y"] = 14.5
 
-        page.on_keyboard_event = detectar_teclado
+        page.on_keyboard_event = d_teclado
 
-        placar_vidas_jogo = ft.Text(f"Vidas: {vidas_usuario} ❤️", size=18, weight="bold", color="green400" if vidas_usuario > 0 else "red400")
-        placar_pontos_jogo = ft.Text("Pontos: 0", size=16, weight="bold")
-        text_instrucao = ft.Text("Clique no cenário para pular!", size=14, color="white60")
+        placar_vidas = ft.Text(f"Vidas: {state['vidas']} ❤️", size=16, weight="bold", color="green400")
+        placar_pontos = ft.Text("Pontos: 0", size=16, weight="bold")
+        placar_fase = ft.Text("Fase: 1", size=16, weight="bold", color="amber400")
+        text_instrucao = ft.Text("Clique no quadrado acima para pular!", size=13, color="white40")
 
-        # --- LOOP DO JOGO ASSÍNCRONO CORRIGIDO ---
+        # --- LOOP INTERNO DE RENDERIZAÇÃO EM NUVEM ---
         async def game_loop():
-            nonlocal vidas_usuario, pontos_usuario
-            gravity = 1.4
-            
-            while game_state["running"]:
-                # Movimentação do Cacto
-                game_state["obstacle_left"] -= game_state["obstacle_speed"]
-                if game_state["obstacle_left"] < -15:
-                    game_state["obstacle_left"] = 340
-                    game_state["score_session"] += 10
-                    game_state["obstacle_speed"] = min(game_state["obstacle_speed"] + 0.4, 14)
-                    placar_pontos_jogo.value = f"Pontos: {game_state['score_session']}"
+            gravity = 1.45
+            while state["running"]:
+                # 1. Movimentação do Obstáculo
+                state["obstacle_left"] -= state["obstacle_speed"]
+                if state["obstacle_left"] < -15:
+                    state["obstacle_left"] = 340
+                    state["score_session"] += 10
+                    placar_pontos.value = f"Pontos: {state['score_session']}"
+                    
+                    # --- SISTEMA EVOLUTIVO DE FASES E SKINS ---
+                    nova_fase = (state["score_session"] // 100) + 1
+                    if nova_fase != state["fase_atual"]:
+                        state["fase_atual"] = nova_fase
+                        placar_fase.value = f"Fase: {state['fase_atual']}"
+                        state["obstacle_speed"] += 1.5
+                        
+                        # Fase 2 concede automaticamente o Foguete se o usuário não tiver
+                        if state["fase_atual"] == 2 and "🚀" not in state["skins_desbloqueadas"]:
+                            state["skins_desbloqueadas"].append("🚀")
+                            state["skin_atual"] = "🚀"
+                            star.content = ft.Text("🚀", size=26)
                 
-                # Física do Pulo da Estrela
-                if game_state["is_jumping"]:
-                    game_state["star_bottom"] += game_state["velocity_y"]
-                    game_state["velocity_y"] -= gravity
-                    if game_state["star_bottom"] <= 0:
-                        game_state["star_bottom"] = 0
-                        game_state["is_jumping"] = False
-                        game_state["velocity_y"] = 0.0
+                # 2. Física do Pulo
+                if state["is_jumping"]:
+                    state["star_bottom"] += state["velocity_y"]
+                    state["velocity_y"] -= gravity
+                    if state["star_bottom"] <= 0:
+                        state["star_bottom"] = 0
+                        state["is_jumping"] = False
                 
-                # Aplica as posições nas coordenadas locais
-                star.bottom = game_state["star_bottom"]
-                obstacle.left = game_state["obstacle_left"]
+                star.bottom = state["star_bottom"]
+                obstacle.left = state["obstacle_left"]
                 
-                # Processamento preciso de colisão
-                if (25 <= game_state["obstacle_left"] <= 55) and game_state["star_bottom"] <= 20:
-                    game_state["running"] = False
+                # 3. Verificação Matemática de Colisão
+                if (25 <= state["obstacle_left"] <= 55) and state["star_bottom"] <= 20:
+                    state["running"] = False
                     break
                 
-                # CORREÇÃO: page.update() atualiza sem travar e não recebe await
-                page.update()
-                await asyncio.sleep(0.04) # O sleep permanece com await por ser uma corrotina nativa
+                page.update() # Chamada síncrona estável
+                await asyncio.sleep(0.04)
 
-            # --- FLUXO DE FIM DE JOGO (GAME OVER) ---
-            vidas_usuario -= 1
-            pontos_usuario += game_state["score_session"]
+            # --- FLUXO DE GAME OVER ---
+            state["vidas"] -= 1
+            atualizar_financeiro(state["score_session"])
             
             botao_iniciar.text = "Jogar Novamente 🔄"
             botao_iniciar.visible = True
             
-            if vidas_usuario <= 0:
+            if state["vidas"] <= 0:
                 botao_iniciar.visible = False
                 container_anuncio.visible = True
-                text_instrucao.value = "Energia zerada! Assista ao anúncio para recarregar."
+                text_instrucao.value = "Energia zerada! Assista ao anúncio para restaurar as vidas."
                 text_instrucao.color = "amber400"
             else:
-                text_instrucao.value = f"Você colidiu! Restam {vidas_usuario} energias."
+                text_instrucao.value = f"Você bateu! Restam {state['vidas']} energias."
                 text_instrucao.color = "red400"
-            
-            placar_vidas_jogo.value = f"Vidas: {vidas_usuario} ❤️"
-            placar_vidas_jogo.color = "red400" if vidas_usuario == 0 else "green400"
+                
+            placar_vidas.value = f"Vidas: {state['vidas']} ❤️"
             page.update()
 
-        async def disparar_inicio(e):
-            game_state["running"] = True
-            game_state["is_jumping"] = False
-            game_state["star_bottom"] = 0
-            game_state["obstacle_left"] = 340
-            game_state["obstacle_speed"] = 7.0
-            game_state["score_session"] = 0
-            
+        def disparar_inicio(e):
+            if state["vidas"] <= 0:
+                return
+            state["running"] = True
+            state["obstacle_speed"] = 7.0
             botao_iniciar.visible = False
-            text_instrucao.value = "Toque no cenário ou use ESPAÇO para Pular!"
+            text_instrucao.value = "Corrida em andamento! Toque no cenário para Pular."
             text_instrucao.color = "cyan200"
-            placar_pontos_jogo.value = "Pontos: 0"
             page.update()
-            
             asyncio.create_task(game_loop())
 
-        async def assistir_anuncio_premiado(e):
-            nonlocal vidas_usuario
-            
-            link_monetag = "https://omg10.com/4/11105173"
-            
-            page.snack_bar = ft.SnackBar(ft.Text("Abrindo anúncio... Não feche o jogo!"), bgcolor="blue700")
-            page.snack_bar.open = True
-            page.update()
-            
-            page.launch_url(link_monetag)
-            
-            text_instrucao.value = "Aguarde 15 segundos assistindo ao anúncio..."
-            text_instrucao.color = "amber400"
+        def recarregar_vidas_anuncio(e):
+            page.launch_url("https://omg10.com/4/11105173")
+            state["vidas"] = 3
             container_anuncio.visible = False
-            page.update()
-            
-            await asyncio.sleep(15)
-            
-            vidas_usuario = 3
-            botao_iniciar.text = "Iniciar Corrida 🚀"
             botao_iniciar.visible = True
-            text_instrucao.value = "Energia restaurada com sucesso!"
+            botao_iniciar.text = "Iniciar Corrida 🚀"
+            text_instrucao.value = "Energia recarregada via anúncio!"
             text_instrucao.color = "green400"
-            placar_vidas_jogo.value = f"Vidas: {vidas_usuario} ❤️"
-            placar_vidas_jogo.color = "green400"
+            placar_vidas.value = f"Vidas: {state['vidas']} ❤️"
+            state["anuncios_assistidos"] += 1
             page.update()
 
         botao_iniciar = ft.ElevatedButton("Iniciar Corrida 🚀", bgcolor="green700", color="white", width=200, on_click=disparar_inicio)
-        
-        container_anuncio = ft.Column(
-            controls=[
-                ft.Text("Anúncio Patrocinado", size=11, color="white30"),
-                ft.ElevatedButton("Assistir Vídeo para Recarregar 📺", icon="play_circle", bgcolor="amber700", color="black", on_click=assistir_anuncio_premiado)
-            ],
-            alignment="center", horizontal_alignment="center", visible=False
-        )
+        container_anuncio = ft.Column([
+            ft.Text("Sem energias disponíveis", size=12, color="white30"),
+            ft.ElevatedButton("Assistir Vídeo Premiado 📺", icon="play_circle", bgcolor="amber700", color="black", on_click=recarregar_vidas_anuncio)
+        ], alignment="center", horizontal_alignment="center", visible=False)
 
-        if vidas_usuario <= 0:
+        if state["vidas"] <= 0:
             botao_iniciar.visible = False
             container_anuncio.visible = True
-            text_instrucao.value = "Sem energia! Assista ao anúncio obrigatório."
-            text_instrucao.color = "amber400"
 
         palco.controls.extend([
-            ft.Text("⭐ Corrida Estelar 2D", size=24, weight="bold"),
-            ft.Container(height=5),
-            ft.Row([placar_vidas_jogo, ft.Container(width=40), placar_pontos_jogo], alignment="center"),
+            ft.Text("⭐ Corrida Estelar", size=22, weight="bold"),
+            ft.Row([placar_vidas, placar_fase, placar_pontos], alignment="space_around", width=360),
             ft.Container(height=10),
             conteudo_jogo,
-            ft.Container(height=15, content=text_instrucao, alignment="center"),
-            botao_iniciar,
-            container_anuncio,
-            ft.Container(height=20),
-            ft.TextButton("Voltar ao Menu Principal", on_click=mostrar_tela_principal)
-        ])
-        page.update()
-
-    # ==========================================
-    # TELA 3: CADASTRO PIX
-    # ==========================================
-    async def mostrar_tela_pix(e=None):
-        game_state["running"] = False
-        page.on_keyboard_event = None
-        palco.controls.clear()
-        
-        dropdown_tipo = ft.Dropdown(
-            label="Tipo de Chave", width=300,
-            options=[ft.dropdown.Option("CPF"), ft.dropdown.Option("E-mail"), ft.dropdown.Option("Celular")]
-        )
-        campo_chave = ft.TextField(label="Digite sua chave Pix", width=300)
-        
-        async def salvar_pix(click):
-            if not dropdown_tipo.value or not campo_chave.value:
-                page.snack_bar = ft.SnackBar(ft.Text("Preencha todos os campos!"), bgcolor="red700")
-            else:
-                page.snack_bar = ft.SnackBar(ft.Text("Chave salva com sucesso!"), bgcolor="green700")
-                await mostrar_tela_principal()
-            
-            page.snack_bar.open = True
-            page.update()
-
-        palco.controls.extend([
-            ft.Text("Configure seus dados de recebimento", size=18, weight="bold"),
-            ft.Container(height=20),
-            dropdown_tipo, campo_chave,
-            ft.Container(height=20),
-            ft.ElevatedButton("Salvar Chave", icon="save", bgcolor="green700", color="white", on_click=salvar_pix),
-            ft.Container(height=10),
+            ft.Container(height=15, content=text_instrucao),
+            botao_iniciar, container_anuncio,
+            ft.Container(height=15),
             ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)
         ])
         page.update()
 
-    # Inicialização correta da árvore de elementos
+    # ==========================================
+    # TELA 3: LOJA DE CENÁRIOS (SISTEMA DE PONTOS)
+    # ==========================================
+    def mostrar_loja_cenarios(e=None):
+        palco.controls.clear()
+        
+        lista_loja = ft.Column(spacing=15, horizontal_alignment="center")
+        ofertas = [
+            {"nome": "Espaço Oblívio", "preco": 0, "desc": "Cenário original do jogo."},
+            {"nome": "Deserto Escaldante", "preco": 500, "desc": "Fundo arenoso com física clássica."},
+            {"nome": "Cyberpunk Neon", "preco": 1500, "desc": "Estética neon futurista para alta performance."}
+        ]
+        
+        for item in ofertas:
+            comprado = item["nome"] in state["cenarios_comprados"]
+            ativo = state["cenario_atual"] == item["nome"]
+            
+            def criar_evento_compra(nome=item["nome"], preco=item["preco"]):
+                def processar(e):
+                    if nome in state["cenarios_comprados"]:
+                        state["cenario_atual"] = nome
+                    elif state["pontos"] >= preco:
+                        state["pontos"] -= preco
+                        state["saldo"] = state["pontos"] * 0.001
+                        state["cenarios_comprados"].append(nome)
+                        state["cenario_atual"] = nome
+                    mostrar_loja_cenarios()
+                return processar
+
+            if ativo:
+                btn = ft.ElevatedButton("Equipado ✅", disabled=True, width=120)
+            elif comprado:
+                btn = ft.ElevatedButton("Equipar", bgcolor="blue700", color="white", width=120, on_click=criar_evento_compra(item["nome"]))
+            else:
+                btn = ft.ElevatedButton(f"{item['preco']} Pts", bgcolor="amber700", color="black", width=120, on_click=criar_evento_compra(item["nome"], item["preco"]))
+
+            lista_loja.controls.append(
+                ft.Container(
+                    content=ft.Row([
+                        ft.Column([ft.Text(item["nome"], weight="bold", size=16), ft.Text(item["desc"], size=12, color="white54")], expand=True),
+                        btn
+                    ]),
+                    padding=10, border=ft.Border.all(1, "white24"), border_radius=8, width=350
+                )
+            )
+
+        palco.controls.extend([
+            ft.Text("Loja de Cenários 🛒", size=24, weight="bold"),
+            ft.Text(f"Seu Saldo: {state['pontos']} Pontos", color="amber400"),
+            ft.Container(height=10),
+            lista_loja,
+            ft.Container(height=20),
+            ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)
+        ])
+        page.update()
+
+    # ==========================================
+    # TELA 4: DESBLOQUEIO DE SKINS (ANÚNCIOS)
+    # ==========================================
+    def mostrar_loja_skins(e=None):
+        palco.controls.clear()
+        lista_skins = ft.Column(spacing=15, horizontal_alignment="center")
+        
+        catalogo = [
+            {"skin": "⭐", "tipo": "Livre", "req": 0, "info": "A estrela clássica padrão."},
+            {"skin": "☄️", "tipo": "Anúncios", "req": 2, "info": "Meteoro de Fogo. Assista 2 anúncios no total."},
+            {"skin": "🛸", "tipo": "Anúncios", "req": 5, "info": "Disco voador Alienígena. Assista 5 anúncios no total."},
+            {"skin": "🚀", "tipo": "Fase", "req": 2, "info": "Conquistado automaticamente ao alcançar a Fase 2."}
+        ]
+
+        for item in catalogo:
+            comprado = item["skin"] in state["skins_desbloqueadas"]
+            ativo = state["skin_atual"] == item["skin"]
+            
+            # Checa se cumpre os requisitos de anúncios assistidos para liberar
+            if not comprado and item["tipo"] == "Anúncios" and state["anuncios_assistidos"] >= item["req"]:
+                state["skins_desbloqueadas"].append(item["skin"])
+                comprado = True
+
+            def criar_evento_skin(skin=item["skin"]):
+                def processar(e):
+                    state["skin_atual"] = skin
+                    mostrar_loja_skins()
+                return processar
+
+            def assistir_ad_skin(e):
+                page.launch_url("https://omg10.com/4/11105173")
+                state["anuncios_assistidos"] += 1
+                mostrar_loja_skins()
+
+            if ativo:
+                btn = ft.ElevatedButton("Em uso ✨", disabled=True, width=130)
+            elif comprado:
+                btn = ft.ElevatedButton("Selecionar", bgcolor="blue700", color="white", width=130, on_click=criar_evento_skin(item["skin"]))
+            elif item["tipo"] == "Fase":
+                btn = ft.Text(f"Bloqueado (Fase {item['req']})", color="red400", size=12, weight="bold")
+            else:
+                btn = ft.ElevatedButton(f"Assistir ({state['anuncios_assistidos']}/{item['req']})", bgcolor="purple700", color="white", width=130, on_click=assistir_ad_skin)
+
+            lista_skins.controls.append(
+                ft.Container(
+                    content=ft.Row([
+                        ft.Text(item["skin"], size=30),
+                        ft.Column([ft.Text(item["info"], size=12, color="white70")], expand=True),
+                        btn
+                    ]),
+                    padding=10, border=ft.Border.all(1, "white12"), border_radius=8, width=350
+                )
+            )
+
+        palco.controls.extend([
+            ft.Text("Inventário de Skins 📺", size=24, weight="bold"),
+            ft.Text(f"Histórico: {state['anuncios_assistidos']} anúncios assistidos", color="purple300"),
+            ft.Container(height=10),
+            lista_skins,
+            ft.Container(height=20),
+            ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)
+        ])
+        page.update()
+
+    # ==========================================
+    # TELA 5: PAINEL DE RETIRADA PIX ONLINE
+    # ==========================================
+    def mostrar_tela_pix(e=None):
+        palco.controls.clear()
+        
+        tipo_chave = ft.Dropdown(
+            label="Tipo de Chave", width=320,
+            options=[ft.dropdown.Option("CPF"), ft.dropdown.Option("E-mail"), ft.dropdown.Option("Telefone"), ft.dropdown.Option("Chave Aleatória")]
+        )
+        campo_chave = ft.TextField(label="Insira sua Chave Pix", width=320)
+        campo_valor = ft.TextField(label="Valor do Resgate (R$)", width=320, value=f"{state['saldo']:.2f}")
+
+        def executar_saque(e):
+            try:
+                v = float(campo_valor.value.replace(",", "."))
+            except:
+                page.snack_bar = ft.SnackBar(ft.Text("Valor numérico inválido!"), bgcolor="red700")
+                page.snack_bar.open = True
+                page.update()
+                return
+
+            if not tipo_chave.value or not campo_chave.value:
+                page.snack_bar = ft.SnackBar(ft.Text("Preencha a chave Pix e o tipo!"), bgcolor="red700")
+            elif v > state["saldo"]:
+                page.snack_bar = ft.SnackBar(ft.Text("Saldo insuficiente para esta retirada!"), bgcolor="red700")
+            elif v < 10.00:
+                page.snack_bar = ft.SnackBar(ft.Text("O saque mínimo exigido é de R$ 10,00!"), bgcolor="amber800")
+            else:
+                # Dedução do saldo processada com sucesso
+                state["saldo"] -= v
+                state["pontos"] = int(state["saldo"] / 0.001)
+                page.snack_bar = ft.SnackBar(ft.Text(f"Solicitação de R$ {v:.2f} enviada! Processamento em até 24h."), bgcolor="green700")
+                mostrar_tela_principal()
+                
+            page.snack_bar.open = True
+            page.update()
+
+        palco.controls.extend([
+            ft.Text("Solicitar Resgate Pix 💰", size=24, weight="bold"),
+            ft.Container(height=10),
+            ft.Container(
+                content=ft.Column([
+                    ft.Text("📜 TERMOS E DIRETRIZES DE RETIRADA:", weight="bold", size=13, color="amber400"),
+                    ft.Text("• Saque Mínimo Obrigatório: R$ 10,00.", size=12),
+                    ft.Text("• Taxa de Conveniência: R$ 0,00 (Isento).", size=12),
+                    ft.Text("• Conversão: Cada 1.000 pontos acumulados equivalem a R$ 1,00.", size=12),
+                    ft.Text("• Anúncios: A receita do seu Pix é gerada pelos anúncios assistidos. Jogadores que burlam anúncios têm o pagamento retido pela auditoria.", size=12, color="white54"),
+                    ft.Text("• Janela de Auditoria: Os depósitos são validados e processados em até 24 horas úteis diretamente na conta informada.", size=12),
+                ], spacing=6),
+                padding=15, bgcolor="#1a1a1a", border_radius=8, border=ft.Border.all(1, "white14"), width=340
+            ),
+            ft.Container(height=15),
+            tipo_chave, campo_chave, campo_valor,
+            ft.Container(height=10),
+            ft.ElevatedButton("Confirmar Transação Pix 🚀", bgcolor="teal=700", color="white", width=320, height=45, on_click=executar_saque),
+            ft.Container(height=10),
+            ft.TextButton("Voltar ao Menu Principal", on_click=mostrar_tela_principal)
+        ])
+        page.update()
+
     page.controls.append(palco)
     page.update()
-    await mostrar_tela_principal()
+    mostrar_tela_principal()
 
 if __name__ == "__main__":
     porta = int(os.getenv("PORT", 8080))
