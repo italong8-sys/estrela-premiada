@@ -1,3 +1,2 @@
-flet
-flet-audio
+flet==0.22.1
 requests

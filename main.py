@@ -1,5 +1,4 @@
 import flet as ft
-import flet_audio as fta  
 import asyncio
 import os
 import requests  
@@ -11,16 +10,16 @@ async def main(page: ft.Page):
     page.vertical_alignment = "center"
     
     # ==========================================
-    # SISTEMA DE ÁUDIO REAL (CORRIGIDO)
+    # SISTEMA DE ÁUDIO NATIVO E VIBRANTE
     # ==========================================
-    snd_bg = fta.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=True, volume=0.3, release_mode="loop")
-    snd_jump = fta.Audio(src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_up.ogg", autoplay=False, volume=0.6)
-    snd_point = fta.Audio(src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg", autoplay=False, volume=0.5)
-    snd_over = fta.Audio(src="https://actions.google.com/sounds/v1/science_fiction/space_emergency.ogg", autoplay=False, volume=0.7)
+    snd_bg = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=True, volume=0.3, looping=True)
+    snd_jump = ft.Audio(src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_up.ogg", autoplay=False, volume=0.6)
+    snd_point = ft.Audio(src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg", autoplay=False, volume=0.5)
+    snd_over = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/space_emergency.ogg", autoplay=False, volume=0.7)
     
     page.overlay.extend([snd_bg, snd_jump, snd_point, snd_over])
 
-    # --- CARREGAMENTO INICIAL DA SESSÃO SALVA ---
+    # --- SESSÃO DO USUÁRIO 100% PERSISTENTE ---
     def carregar_valor(chave, padrao, tipo):
         val = page.client_storage.get(f"starrun_{chave}")
         if val is None:
@@ -66,7 +65,7 @@ async def main(page: ft.Page):
     # ==========================================
     # TELA 1: MENU PRINCIPAL
     # ==========================================
-    def mostrar_tela_principal(e=None):
+    async def mostrar_tela_principal(e=None):
         state["running"] = False 
         page.on_keyboard_event = None 
         palco.controls.clear() 
@@ -91,12 +90,12 @@ async def main(page: ft.Page):
             ft.ElevatedButton("Desbloquear Skins 📺", bgcolor="purple700", color="white", width=260, height=45, on_click=mostrar_loja_skins),
             ft.ElevatedButton("Sacar via Pix 💰", bgcolor="teal700", color="white", width=260, height=45, on_click=mostrar_tela_pix),
         ])
-        page.update()
+        await page.update_async()
 
     # ==========================================
     # TELA 2: MOTOR GRÁFICO DO JOGO
     # ==========================================
-    def mostrar_tela_jogo(e=None):
+    async def mostrar_tela_jogo(e=None):
         palco.controls.clear()
         state["obstacle_left"] = 340
         state["star_bottom"] = 0
@@ -169,11 +168,12 @@ async def main(page: ft.Page):
                     snd_over.play()  
                     break
                 
-                page.update()
+                await page.update_async()
                 await asyncio.sleep(0.04)
 
             state["vidas"] -= 1
-            atualizar_financeiro(state["score_session"])
+            addAll = state["score_session"]
+            atualizar_financeiro(addAll)
             botao_iniciar.text = "Jogar Novamente 🔄"
             botao_iniciar.visible = True
             
@@ -187,7 +187,7 @@ async def main(page: ft.Page):
                 text_instrucao.color = "red400"
                 
             placar_vidas.value = f"Vidas: {state['vidas']} ❤️"
-            page.update()
+            await page.update_async()
 
         def disparar_inicio(e):
             if state["vidas"] <= 0: return
@@ -225,12 +225,12 @@ async def main(page: ft.Page):
             ft.Container(height=15),
             ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)
         ])
-        page.update()
+        await page.update_async()
 
     # ==========================================
     # TELA 3: LOJA DE CENÁRIOS
     # ==========================================
-    def mostrar_loja_cenarios(e=None):
+    async def mostrar_loja_cenarios(e=None):
         palco.controls.clear()
         lista_loja = ft.Column(spacing=15, horizontal_alignment="center")
         ofertas = [
@@ -252,7 +252,7 @@ async def main(page: ft.Page):
                         state["cenarios_comprados"].append(nome)
                         state["cenario_atual"] = nome
                         salvar_progresso_local()
-                    mostrar_loja_cenarios()
+                    asyncio.create_task(mostrar_loja_cenarios())
                 return processar
 
             if ativo: btn = ft.ElevatedButton("Equipado ✅", disabled=True, width=120)
@@ -262,12 +262,12 @@ async def main(page: ft.Page):
             lista_loja.controls.append(ft.Container(content=ft.Row([ft.Column([ft.Text(item["nome"], weight="bold", size=16), ft.Text(item["desc"], size=12, color="white54")], expand=True), btn]), padding=10, border=ft.Border.all(1, "white24"), border_radius=8, width=350))
 
         palco.controls.extend([ft.Text("Loja de Cenários 🛒", size=24, weight="bold"), ft.Text(f"Seu Saldo: {state['pontos']} Pontos", color="amber400"), ft.Container(height=10), lista_loja, ft.Container(height=20), ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)])
-        page.update()
+        await page.update_async()
 
     # ==========================================
     # TELA 4: LOJA DE SKINS
     # ==========================================
-    def mostrar_loja_skins(e=None):
+    async def mostrar_loja_skins(e=None):
         palco.controls.clear()
         lista_skins = ft.Column(spacing=15, horizontal_alignment="center")
         catalogo = [
@@ -289,14 +289,14 @@ async def main(page: ft.Page):
                 def processar(e):
                     state["skin_atual"] = skin
                     salvar_progresso_local()
-                    mostrar_loja_skins()
+                    asyncio.create_task(mostrar_loja_skins())
                 return processar
 
             def assistir_ad_skin(e):
                 page.launch_url("https://omg10.com/4/11105173")
                 state["anuncios_assistidos"] += 1
                 salvar_progresso_local()
-                mostrar_loja_skins()
+                asyncio.create_task(mostrar_loja_skins())
 
             if ativo: btn = ft.ElevatedButton("Em uso ✨", disabled=True, width=130)
             elif comprado: btn = ft.ElevatedButton("Selecionar", bgcolor="blue700", color="white", width=130, on_click=criar_evento_skin(item["skin"]))
@@ -306,12 +306,12 @@ async def main(page: ft.Page):
             lista_skins.controls.append(ft.Container(content=ft.Row([ft.Text(item["skin"], size=30), ft.Column([ft.Text(item["info"], size=12, color="white70")], expand=True), btn]), padding=10, border=ft.Border.all(1, "white12"), border_radius=8, width=350))
 
         palco.controls.extend([ft.Text("Skins Desbloqueáveis 📺", size=24, weight="bold"), ft.Text(f"Histórico: {state['anuncios_assistidos']} anúncios assistidos", color="purple300"), ft.Container(height=10), lista_skins, ft.Container(height=20), ft.TextButton("Voltar ao Menu", on_click=mostrar_tela_principal)])
-        page.update()
+        await page.update_async()
 
     # ==========================================
     # TELA 5: PAINEL PIX REAL ONLINE
     # ==========================================
-    def mostrar_tela_pix(e=None):
+    async def mostrar_tela_pix(e=None):
         palco.controls.clear()
         tipo_chave = ft.Dropdown(label="Tipo de Chave", width=320, options=[ft.dropdown.Option("CPF"), ft.dropdown.Option("E-mail"), ft.dropdown.Option("Telefone")])
         campo_chave = ft.TextField(label="Insira sua Chave Pix", width=320)
@@ -353,7 +353,7 @@ async def main(page: ft.Page):
                 state["saldo"] -= v
                 state["pontos"] = int(state["saldo"] / 0.001)
                 salvar_progresso_local()
-                mostrar_tela_principal()
+                asyncio.create_task(mostrar_tela_principal())
                 
             page.snack_bar.open = True
             page.update()
@@ -371,11 +371,11 @@ async def main(page: ft.Page):
             ft.ElevatedButton("Confirmar Transação Pix 🚀", bgcolor="teal700", color="white", width=320, height=45, on_click=ejecutar_saque_real),
             ft.TextButton("Voltar ao Menu Principal", on_click=mostrar_tela_principal)
         ])
-        page.update()
+        await page.update_async()
 
     page.controls.append(palco)
-    page.update()
-    mostrar_tela_principal()
+    await page.update_async()
+    await mostrar_tela_principal()
 
 if __name__ == "__main__":
     porta = int(os.getenv("PORT", 8080))
