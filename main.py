@@ -9,10 +9,14 @@ async def main(page: ft.Page):
     page.horizontal_alignment = "center"
     page.vertical_alignment = "center"
     
+    # 1. Inicializa a estrutura básica e força o Handshake estável com o navegador antes do storage
+    palco = ft.Column(alignment="center", horizontal_alignment="center")
+    page.controls.append(palco)
+    await page.update_async() 
+    
     # ==========================================
-    # SISTEMA DE ÁUDIO NATIVO CORRIGIDO 🎛️
+    # SISTEMA DE ÁUDIO NATIVO E VIBRANTE
     # ==========================================
-    # Mudado de looping=True para release_mode="loop" para alinhar com a sintaxe do Flet
     snd_bg = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=True, volume=0.3, release_mode="loop")
     snd_jump = ft.Audio(src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_up.ogg", autoplay=False, volume=0.6)
     snd_point = ft.Audio(src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg", autoplay=False, volume=0.5)
@@ -20,20 +24,14 @@ async def main(page: ft.Page):
     
     page.overlay.extend([snd_bg, snd_jump, snd_point, snd_over])
 
-    # --- SESSÃO DO USUÁRIO 100% PERSISTENTE ---
-    def carregar_valor(chave, padrao, tipo):
-        val = page.client_storage.get(f"starrun_{chave}")
-        if val is None:
-            return padrao
-        return tipo(val)
-
+    # --- INICIALIZAÇÃO DO ESTADO COM VALORES PADRÃO SEGUROS ---
     state = {
-        "saldo": carregar_valor("saldo", 0.00, float),
-        "pontos": carregar_valor("pontos", 0, int),
+        "saldo": 0.00,
+        "pontos": 0,
         "vidas": 3,
-        "anuncios_assistidos": carregar_valor("ads", 0, int),
-        "skin_atual": page.client_storage.get("starrun_skin") or "⭐",
-        "cenario_atual": page.client_storage.get("starrun_cenario") or "Espaço Oblívio",
+        "anuncios_assistidos": 0,
+        "skin_atual": "⭐",
+        "cenario_atual": "Espaço Oblívio",
         "skins_desbloqueadas": ["⭐"],
         "cenarios_comprados": ["Espaço Oblívio"],
         "running": False, "is_jumping": False, "velocity_y": 0.0,
@@ -41,22 +39,45 @@ async def main(page: ft.Page):
         "score_session": 0, "fase_atual": 1
     }
 
-    skins_salvas = page.client_storage.get("starrun_inv_skins")
-    if skins_salvas: state["skins_desbloqueadas"] = skins_salvas.split(",")
-    cenarios_salvos = page.client_storage.get("starrun_inv_cenarios")
-    if cenarios_salvos: state["cenarios_comprados"] = cenarios_salvos.split(",")
-
     cores_cenarios = {"Espaço Oblívio": "#111111", "Deserto Escaldante": "#3a2212", "Cyberpunk Neon": "#1a0033"}
-    palco = ft.Column(alignment="center", horizontal_alignment="center")
+
+    # --- FUNÇÃO DE CARREGAMENTO SEGURO (CHAMADA APÓS CONEXÃO ATIVA) ---
+    async def carregar_sessao_salva():
+        try:
+            s = page.client_storage.get("starrun_saldo")
+            if s is not None: state["saldo"] = float(s)
+            
+            p = page.client_storage.get("starrun_pontos")
+            if p is not None: state["pontos"] = int(p)
+            
+            a = page.client_storage.get("starrun_ads")
+            if a is not None: state["anuncios_assistidos"] = int(a)
+            
+            sk = page.client_storage.get("starrun_skin")
+            if sk is not None: state["skin_atual"] = sk
+            
+            ce = page.client_storage.get("starrun_cenario")
+            if ce is not None: state["cenario_atual"] = ce
+            
+            skins_salvas = page.client_storage.get("starrun_inv_skins")
+            if skins_salvas: state["skins_desbloqueadas"] = skins_salvas.split(",")
+            
+            cenarios_salvos = page.client_storage.get("starrun_inv_cenarios")
+            if cenarios_salvos: state["cenarios_comprados"] = cenarios_salvos.split(",")
+        except Exception as err:
+            print(f"Aviso de sincronia inicial do storage: {err}")
 
     def salvar_progresso_local():
-        page.client_storage.set("starrun_saldo", str(state["saldo"]))
-        page.client_storage.set("starrun_pontos", str(state["pontos"]))
-        page.client_storage.set("starrun_ads", str(state["anuncios_assistidos"]))
-        page.client_storage.set("starrun_skin", state["skin_atual"])
-        page.client_storage.set("starrun_cenario", state["cenario_atual"])
-        page.client_storage.set("starrun_inv_skins", ",".join(state["skins_desbloqueadas"]))
-        page.client_storage.set("starrun_inv_cenarios", ",".join(state["cenados_comprados"]))
+        try:
+            page.client_storage.set("starrun_saldo", str(state["saldo"]))
+            page.client_storage.set("starrun_pontos", str(state["pontos"]))
+            page.client_storage.set("starrun_ads", str(state["anuncios_assistidos"]))
+            page.client_storage.set("starrun_skin", state["skin_atual"])
+            page.client_storage.set("starrun_cenario", state["cenario_atual"])
+            page.client_storage.set("starrun_inv_skins", ",".join(state["skins_desbloqueadas"]))
+            page.client_storage.set("starrun_inv_cenarios", ",".join(state["cenarios_comprados"]))
+        except Exception as err:
+            print(f"Erro ao salvar storage: {err}")
 
     def atualizar_financeiro(novos_pontos):
         state["pontos"] += novos_pontos
@@ -374,8 +395,8 @@ async def main(page: ft.Page):
         ])
         await page.update_async()
 
-    page.controls.append(palco)
-    await page.update_async()
+    # Executa a carga segura dos dados salvos após Handshake estável e inicializa o menu principal
+    await carregar_sessao_salva()
     await mostrar_tela_principal()
 
 if __name__ == "__main__":
