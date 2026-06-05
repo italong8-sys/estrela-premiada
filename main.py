@@ -10,13 +10,13 @@ async def main(page: ft.Page):
     page.vertical_alignment = "center"
     page.padding = 10
     
-    # CORREÇÃO: Removido o max_width inválido do ft.Column 🚀
+    # Inicializa o container principal do app
     palco = ft.Column(alignment="center", horizontal_alignment="center")
     page.controls.append(palco)
     await page.update_async() 
     
     # ==========================================
-    # SISTEMA DE ÁUDIO ASSÍNCRONO BLINDADO
+    # SISTEMA DE ÁUDIO NATIVO E VIBRANTE
     # ==========================================
     snd_bg = ft.Audio(src="https://actions.google.com/sounds/v1/science_fiction/ambient_space_drive.ogg", autoplay=False, volume=0.25, release_mode="loop")
     snd_jump = ft.Audio(src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_up.ogg", autoplay=False, volume=0.5)
@@ -25,7 +25,7 @@ async def main(page: ft.Page):
     
     page.overlay.extend([snd_bg, snd_jump, snd_point, snd_over])
 
-    # --- ESTADO DE SESSÃO DO JOGADOR ---
+    # --- ESTADO DE SESSÃO DO JOGADOR (VALORES PADRÃO SEGUROS) ---
     state = {
         "saldo": 0.00,
         "pontos": 0,
@@ -48,52 +48,58 @@ async def main(page: ft.Page):
 
     cores_cenarios = {"Espaço Oblívio": "#111111", "Deserto Escaldante": "#3a2212", "Cyberpunk Neon": "#1a0033"}
 
-    # --- CARREGAMENTO DO STORAGE TOTALMENTE ASSÍNCRONO ---
+    # --- CARREGAMENTO SEGURO DO STORAGE (RODA APÓS O HANDSHAKE DA REDE) ---
     async def carregar_sessao_salva():
         try:
-            await asyncio.sleep(0.3) 
-            s = await page.client_storage.get_async("starrun_saldo")
+            # Aguarda 1 segundo completo para a conexão com o navegador estar 100% estável
+            await asyncio.sleep(1.0) 
+            
+            s = page.client_storage.get("starrun_saldo")
             if s is not None: state["saldo"] = float(s)
             
-            p = await page.client_storage.get_async("starrun_pontos")
+            p = page.client_storage.get("starrun_pontos")
             if p is not None: state["pontos"] = int(p)
             
-            a = await page.client_storage.get_async("starrun_ads")
+            a = page.client_storage.get("starrun_ads")
             if a is not None: state["anuncios_assistidos"] = int(a)
             
-            sk = await page.client_storage.get_async("starrun_skin")
+            sk = page.client_storage.get("starrun_skin")
             if sk is not None: state["skin_atual"] = sk
             
-            ce = await page.client_storage.get_async("starrun_cenario")
+            ce = page.client_storage.get("starrun_cenario")
             if ce is not None: state["cenario_atual"] = ce
             
-            skins_salvas = await page.client_storage.get_async("starrun_inv_skins")
+            skins_salvas = page.client_storage.get("starrun_inv_skins")
             if skins_salvas: state["skins_desbloqueadas"] = skins_salvas.split(",")
             
-            cenarios_salvos = await page.client_storage.get_async("starrun_inv_cenarios")
+            cenarios_salvos = page.client_storage.get("starrun_inv_cenarios")
             if cenarios_salvos: state["cenarios_comprados"] = cenarios_salvos.split(",")
+            
+            # Atualiza a interface com os dados reais recuperados do navegador
+            await mostrar_tela_principal()
         except Exception as err:
-            print(f"Erro Storage Load: {err}")
+            print(f"Aviso de sincronia do storage local: {err}")
 
-    async def salvar_progresso_local():
+    # Métodos síncronos obrigatórios para o client_storage no Flet 0.22.1
+    def salvar_progresso_local():
         try:
-            await page.client_storage.set_async("starrun_saldo", str(state["saldo"]))
-            await page.client_storage.set_async("starrun_pontos", str(state["pontos"]))
-            await page.client_storage.set_async("starrun_ads", str(state["anuncios_assistidos"]))
-            await page.client_storage.set_async("starrun_skin", state["skin_atual"])
-            await page.client_storage.set_async("starrun_cenario", state["cenario_atual"])
-            await page.client_storage.set_async("starrun_inv_skins", ",".join(state["skins_desbloqueadas"]))
-            await page.client_storage.set_async("starrun_inv_cenarios", ",".join(state["cenarios_comprados"]))
+            page.client_storage.set("starrun_saldo", str(state["saldo"]))
+            page.client_storage.set("starrun_pontos", str(state["pontos"]))
+            page.client_storage.set("starrun_ads", str(state["anuncios_assistidos"]))
+            page.client_storage.set("starrun_skin", state["skin_atual"])
+            page.client_storage.set("starrun_cenario", state["cenario_atual"])
+            page.client_storage.set("starrun_inv_skins", ",".join(state["skins_desbloqueadas"]))
+            page.client_storage.set("starrun_inv_cenarios", ",".join(state["cenarios_comprados"]))
         except Exception as err:
-            print(f"Erro Storage Save: {err}")
+            print(f"Erro ao salvar progresso: {err}")
 
-    async def atualizar_financeiro(novos_pontos):
+    def atualizar_financeiro(novos_pontos):
         state["pontos"] += novos_pontos
         state["saldo"] = state["pontos"] * 0.001
-        await salvar_progresso_local()
+        salvar_progresso_local()
 
     # ==========================================
-    # TELA 1: MENU PRINCIPAL
+    # TELA 1: MENU PRINCIPAL (ASSÍNCRONO)
     # ==========================================
     async def mostrar_tela_principal(e=None):
         state["running"] = False 
@@ -128,7 +134,7 @@ async def main(page: ft.Page):
         await page.update_async()
 
     # ==========================================
-    # TELA 2: MOTOR GRÁFICO DO JOGO (PC & CELULAR)
+    # TELA 2: MOTOR GRÁFICO DO JOGO
     # ==========================================
     async def mostrar_tela_jogo(e=None):
         palco.controls.clear()
@@ -191,7 +197,7 @@ async def main(page: ft.Page):
                         state["obstacle_speed"] += 1.5
                         if state["fase_atual"] == 2 and "🚀" not in state["skins_desbloqueadas"]:
                             state["skins_desbloqueadas"].append("🚀")
-                            await salvar_progresso_local()
+                            salvar_progresso_local()
                 
                 if state["is_jumping"]:
                     state["star_bottom"] += state["velocity_y"]
@@ -213,7 +219,7 @@ async def main(page: ft.Page):
                 await asyncio.sleep(0.04)
 
             state["vidas"] -= 1
-            await atualizar_financeiro(state["score_session"])
+            atualizar_financeiro(state["score_session"])
             botao_iniciar.text = "Jogar Novamente 🔄"
             botao_iniciar.visible = True
             
@@ -244,7 +250,7 @@ async def main(page: ft.Page):
             botao_iniciar.visible = True
             placar_vidas.value = f"Vidas: {state['vidas']} ❤️"
             state["anuncios_assistidos"] += 1
-            await salvar_progresso_local()
+            salvar_progresso_local()
             await mostrar_tela_jogo()
 
         async def alternar_redimensionamento(e):
@@ -302,7 +308,7 @@ async def main(page: ft.Page):
                         state["pontos"] -= preco
                         state["cenarios_comprados"].append(nome)
                         state["cenario_atual"] = nome
-                        await salvar_progresso_local()
+                        salvar_progresso_local()
                     await mostrar_loja_cenarios()
                 return processar
 
@@ -334,19 +340,19 @@ async def main(page: ft.Page):
             if not comprado and item["tipo"] == "Anúncios" and state["anuncios_assistidos"] >= item["req"]:
                 state["skins_desbloqueadas"].append(item["skin"])
                 comprado = True
-                await salvar_progresso_local()
+                salvar_progresso_local()
 
             def criar_evento_skin(skin=item["skin"]):
                 async def processar(e):
                     state["skin_atual"] = skin
-                    await salvar_progresso_local()
+                    salvar_progresso_local()
                     await mostrar_loja_skins()
                 return processar
 
             async def assistir_ad_skin(e):
                 await page.launch_url_async("https://omg10.com/4/11105173")
                 state["anuncios_assistidos"] += 1
-                await salvar_progresso_local()
+                salvar_progresso_local()
                 await mostrar_loja_skins()
 
             if ativo: btn = ft.ElevatedButton("Em uso ✨", disabled=True, width=120)
@@ -380,4 +386,54 @@ async def main(page: ft.Page):
             if not tipo_chave.value or not campo_chave.value:
                 page.snack_bar = ft.SnackBar(ft.Text("Preencha todos os dados Pix!"), bgcolor="red700")
             elif v > state["saldo"]:
-                page.snack_bar = ft.SnackBar(ft.Text
+                page.snack_bar = ft.SnackBar(ft.Text("Saldo insuficiente!"), bgcolor="red700")
+            elif v < 10.00:
+                page.snack_bar = ft.SnackBar(ft.Text("Saque mínimo obrigatório: R$ 10,00!"), bgcolor="amber800")
+            else:
+                API_TOKEN = os.getenv("GATEWAY_PIX_TOKEN", "DESATIVADO")
+                
+                if API_TOKEN == "DESATIVADO":
+                    page.snack_bar = ft.SnackBar(ft.Text("Modo Sandbox: Chave válida, mas API externa pendente no Render!"), bgcolor="amber900")
+                else:
+                    payload = {"key": campo_chave.value, "type": tipo_chave.value, "amount": v}
+                    headers = {"Authorization": f"Bearer {API_TOKEN}", "Content-Type": "application/json"}
+                    
+                    try:
+                        response = requests.post("https://api.asaas.com/v3/transfers", json=payload, headers=headers, timeout=10)
+                        if response.status_code in [200, 201]:
+                            page.snack_bar = ft.SnackBar(ft.Text("Pix realizado com sucesso!"), bgcolor="green700")
+                        else:
+                            page.snack_bar = ft.SnackBar(ft.Text("Gateway recusou o Pix."), bgcolor="red700")
+                    except Exception:
+                        page.snack_bar = ft.SnackBar(ft.Text("Erro de conexão com o banco externo."), bgcolor="red700")
+
+                state["saldo"] -= v
+                state["pontos"] = int(state["saldo"] / 0.001)
+                salvar_progresso_local()
+                await mostrar_tela_principal()
+                
+            page.snack_bar.open = True
+            await page.update_async()
+
+        palco.controls.extend([
+            ft.Text("Solicitar Resgate Pix 💰", size=24, weight="bold"),
+            ft.Container(content=ft.Column([
+                ft.Text("📜 TERMOS DE RETIRADA:", weight="bold", size=13, color="amber400"),
+                ft.Text("• Saque Mínimo Obrigatório: R$ 10,00.", size=12),
+                ft.Text("• Taxa de Conveniência: R$ 0,00 (Isento).", size=12),
+                ft.Text("• Janela de Transação: Processamento instantâneo via API Gateway.", size=12),
+            ], spacing=5), padding=12, bgcolor="#1a1a1a", border_radius=8, width=340),
+            ft.Container(height=10),
+            tipo_chave, campo_chave, campo_valor,
+            ft.ElevatedButton("Confirmar Transação Pix 🚀", bgcolor="teal700", color="white", width=320, height=45, on_click=ejecutar_saque_real),
+            ft.TextButton("Voltar ao Menu Principal", on_click=mostrar_tela_principal)
+        ])
+        await page.update_async()
+
+    # Desenha o menu com valores base rápidos e dispara a sincronia do storage local em background
+    await mostrar_tela_principal()
+    asyncio.create_task(carregar_sessao_salva())
+
+if __name__ == "__main__":
+    porta = int(os.getenv("PORT", 8080))
+    ft.app(target=main, port=porta, assets_dir="assets")
